@@ -3,7 +3,7 @@ export type ToolType = "http_request" | "code_executor" | "mcp";
 export interface ToolConfig {
   type: ToolType;
   url?: string;
-  method?: "GET" | "POST" | "PUT" | "DELETE";
+  method?: "GET" | "POST" | "PUT" | "DELETE" | "PATCH";
   headers?: Record<string, string>;
   body?: string;
   language?: "python" | "javascript";
