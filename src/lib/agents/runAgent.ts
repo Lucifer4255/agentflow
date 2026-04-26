@@ -88,7 +88,7 @@ export async function runAgent(
           model,
           messages,
           tools: allTools.length > 0 ? allTools : undefined,
-          max_tokens: 4096,
+          max_tokens: model.includes('free') ? 1024 : 4096,
         }),
       })
 

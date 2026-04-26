@@ -6,14 +6,8 @@ import { useGraphStore } from '@/store/graphStore'
 import { runGraph } from '@/lib/runGraph'
 import { marketResearchNodes, marketResearchEdges } from '@/components/demo/marketResearchFlow'
 import { cn } from '@/lib/cn'
+import { MODEL_OPTIONS } from '@/lib/models'
 
-const MODELS = [
-  'anthropic/claude-sonnet-4-5',
-  'anthropic/claude-opus-4',
-  'openai/gpt-4o',
-  'openai/gpt-4o-mini',
-  'google/gemini-2.0-flash-exp',
-]
 
 export function Toolbar() {
   const addNode = useGraphStore((s) => s.addNode)
@@ -21,7 +15,7 @@ export function Toolbar() {
   const loadGraph = useGraphStore((s) => s.loadGraph)
   const running = useGraphStore((s) => s.running)
   const nodes = useGraphStore((s) => s.nodes)
-  const [model, setModel] = useState(MODELS[0])
+  const [model, setModel] = useState<string>(MODEL_OPTIONS[0])
 
   const onRun = () => {
     if (running || nodes.length === 0) return
@@ -58,7 +52,7 @@ export function Toolbar() {
           disabled={running}
           className="h-9 rounded-md border border-zinc-700 bg-zinc-900 px-2 text-xs text-zinc-200 outline-none focus:border-sky-500"
         >
-          {MODELS.map((m) => (
+          {MODEL_OPTIONS.map((m) => (
             <option key={m} value={m}>
               {m}
             </option>
