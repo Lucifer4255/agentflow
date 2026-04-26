@@ -4,6 +4,7 @@ import { Plus, Play, Trash2, Sparkles, Loader2 } from 'lucide-react'
 import { useState } from 'react'
 import { useGraphStore } from '@/store/graphStore'
 import { runGraph } from '@/lib/runGraph'
+import { marketResearchNodes, marketResearchEdges } from '@/components/demo/marketResearchFlow'
 import { cn } from '@/lib/cn'
 
 const MODELS = [
@@ -17,6 +18,7 @@ const MODELS = [
 export function Toolbar() {
   const addNode = useGraphStore((s) => s.addNode)
   const clear = useGraphStore((s) => s.clear)
+  const loadGraph = useGraphStore((s) => s.loadGraph)
   const running = useGraphStore((s) => s.running)
   const nodes = useGraphStore((s) => s.nodes)
   const [model, setModel] = useState(MODELS[0])
@@ -27,7 +29,7 @@ export function Toolbar() {
   }
 
   const onLoadDemo = () => {
-    // TODO: wire to demo seed once it lands
+    loadGraph(marketResearchNodes, marketResearchEdges)
   }
 
   return (
