@@ -4,6 +4,7 @@ import { ReactFlowProvider } from '@xyflow/react'
 import { AgentCanvas } from '@/components/canvas/AgentCanvas'
 import { Toolbar } from '@/components/toolbar/Toolbar'
 import { NodeConfig } from '@/components/sidebar/NodeConfig'
+import { OutputPanel } from '@/components/output/OutputPanel'
 
 export default function Page() {
   return (
@@ -16,6 +17,7 @@ export default function Page() {
           </div>
           <NodeConfig />
         </div>
+        <OutputPanel />
       </div>
     </ReactFlowProvider>
   )
