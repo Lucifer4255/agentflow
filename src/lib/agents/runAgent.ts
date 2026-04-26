@@ -61,14 +61,16 @@ export async function runAgent(
     const mcpTools = mcpConnections.flatMap((c) => c.tools)
     const allTools: OpenAIToolDef[] = [...builtinTools, ...mcpTools]
 
+    // Input nodes use the user-typed value as the prompt instead of upstream context
+    const userMessage = agentData.isInputNode && agentData.userInput
+      ? agentData.userInput
+      : upstreamContext
+        ? `Context from previous agents:\n\n${upstreamContext}\n\nNow complete your task.`
+        : 'Begin your task.'
+
     const messages: ChatMessage[] = [
       { role: 'system', content: agentData.systemPrompt },
-      {
-        role: 'user',
-        content: upstreamContext
-          ? `Context from previous agents:\n\n${upstreamContext}\n\nNow complete your task.`
-          : 'Begin your task.',
-      },
+      { role: 'user', content: userMessage },
     ]
 
     const model = agentData.model || modelOverride || 'anthropic/claude-sonnet-4-5'

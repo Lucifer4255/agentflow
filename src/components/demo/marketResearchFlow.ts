@@ -8,12 +8,14 @@ const EXA_KEY = '__env__'
 export const marketResearchNodes: AgentNode[] = [
   {
     id: 'input-node',
-    type: 'agentNode',
+    type: 'inputNode',
     position: { x: 50, y: 300 },
     data: {
       label: 'Input',
+      isInputNode: true,
+      userInput: 'Research NVIDIA (NVDA)',
       systemPrompt:
-        'You are a query parser. The user will provide a company or stock ticker. Extract and clearly state: 1) Company name 2) Stock ticker if known 3) What research is being requested. Default to NVIDIA (NVDA) if no input is provided. Return a clean structured summary.',
+        'You are a query parser. Extract and clearly state: 1) Company name 2) Stock ticker if known 3) What research is being requested. Return a clean structured summary.',
       tools: [],
       status: 'idle',
     },

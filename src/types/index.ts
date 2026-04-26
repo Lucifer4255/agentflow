@@ -13,6 +13,8 @@ export interface ToolConfig {
 }
 
 export interface AgentNodeData {
+  userInput?: string;
+  isInputNode?: boolean;
   label: string;
   systemPrompt: string;
   tools: ToolConfig[];

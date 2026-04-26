@@ -11,6 +11,7 @@ import '@xyflow/react/dist/style.css'
 import { useMemo } from 'react'
 import { useGraphStore } from '@/store/graphStore'
 import { AgentNode } from './AgentNode'
+import { InputNode } from './InputNode'
 
 export function AgentCanvas() {
   const nodes = useGraphStore((s) => s.nodes)
@@ -21,7 +22,7 @@ export function AgentCanvas() {
   const selectNode = useGraphStore((s) => s.selectNode)
   const running = useGraphStore((s) => s.running)
 
-  const nodeTypes = useMemo(() => ({ agentNode: AgentNode }), [])
+  const nodeTypes = useMemo(() => ({ agentNode: AgentNode, inputNode: InputNode }), [])
 
   const onNodeClick: NodeMouseHandler = (_, node) => selectNode(node.id)
   const onPaneClick = () => selectNode(null)
