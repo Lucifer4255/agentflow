@@ -3,6 +3,7 @@
 import { Plus, Play, Trash2, Sparkles, Loader2 } from 'lucide-react'
 import { useState } from 'react'
 import { useGraphStore } from '@/store/graphStore'
+import { runGraph } from '@/lib/runGraph'
 import { cn } from '@/lib/cn'
 
 const MODELS = [
@@ -21,7 +22,8 @@ export function Toolbar() {
   const [model, setModel] = useState(MODELS[0])
 
   const onRun = () => {
-    // TODO: wire to runGraph(model) once executor lands
+    if (running || nodes.length === 0) return
+    runGraph(model)
   }
 
   const onLoadDemo = () => {
