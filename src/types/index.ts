@@ -6,6 +6,7 @@ export interface ToolConfig {
   method?: "GET" | "POST" | "PUT" | "DELETE" | "PATCH";
   headers?: Record<string, string>;
   body?: string;
+  apiKey?: string;
   language?: "python" | "javascript";
   mcpServerUrl?: string;
   mcpServerName?: string;

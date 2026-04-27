@@ -22,6 +22,7 @@ interface GraphState {
   outputs: Record<string, string>
   errors: Record<string, string>
   activeOutputTab: string | null
+  stopFn: (() => void) | null
 
   onNodesChange: (changes: NodeChange[]) => void
   onEdgesChange: (changes: EdgeChange[]) => void
@@ -35,7 +36,7 @@ interface GraphState {
   setStatus: (id: string, status: AgentNodeData['status']) => void
   setOutput: (id: string, output: string) => void
   setError: (id: string, error: string) => void
-  beginRun: () => void
+  beginRun: (stopFn: () => void) => void
   endRun: () => void
   setCurrentNode: (id: string | null) => void
   setActiveOutputTab: (id: string | null) => void
@@ -55,6 +56,7 @@ export const useGraphStore = create<GraphState>((set, get) => ({
   outputs: {},
   errors: {},
   activeOutputTab: null,
+  stopFn: null,
 
   onNodesChange: (changes) =>
     set({ nodes: applyNodeChanges(changes, get().nodes) as AgentNode[] }),
@@ -65,15 +67,17 @@ export const useGraphStore = create<GraphState>((set, get) => ({
 
   addNode: (partial) => {
     const id = uid()
+    const isInput = partial?.isInputNode ?? false
     const node: AgentNode = {
       id,
-      type: 'agentNode',
+      type: isInput ? 'inputNode' : 'agentNode',
       position: { x: 200 + Math.random() * 200, y: 150 + Math.random() * 200 },
       data: {
-        label: partial?.label ?? 'New Agent',
-        systemPrompt: partial?.systemPrompt ?? 'You are a helpful agent.',
+        label: partial?.label ?? (isInput ? 'Input' : 'New Agent'),
+        systemPrompt: partial?.systemPrompt ?? (isInput ? '' : 'You are a helpful agent.'),
         tools: partial?.tools ?? [],
         model: partial?.model,
+        isInputNode: isInput,
         status: 'idle',
       },
     }
@@ -121,9 +125,10 @@ export const useGraphStore = create<GraphState>((set, get) => ({
       ),
     }),
 
-  beginRun: () =>
+  beginRun: (stopFn) =>
     set({
       running: true,
+      stopFn,
       outputs: {},
       errors: {},
       nodes: get().nodes.map((n) => ({
@@ -132,7 +137,7 @@ export const useGraphStore = create<GraphState>((set, get) => ({
       })),
     }),
 
-  endRun: () => set({ running: false, currentNodeId: null }),
+  endRun: () => set({ running: false, currentNodeId: null, stopFn: null }),
 
   setCurrentNode: (id) => {
     set({ currentNodeId: id })

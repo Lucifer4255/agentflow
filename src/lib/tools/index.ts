@@ -19,12 +19,16 @@ export function buildBuiltinToolDefinitions(tools: ToolConfig[]): OpenAIToolDef[
   const types = new Set(tools.map((t) => t.type))
 
   if (types.has('http_request')) {
+    const httpTool = tools.find((t) => t.type === 'http_request')
+    const urlHint = httpTool?.url
+      ? ` The pre-configured endpoint is: ${httpTool.url}`
+      : ''
     defs.push({
       type: 'function',
       function: {
         name: HTTP_TOOL_NAME,
         description:
-          'Make an HTTP request to any URL. Use this to fetch data from public APIs, web pages, or webhooks.',
+          `Make an HTTP request to any URL. Use this to fetch data from public APIs, web pages, or webhooks.${urlHint}`,
         parameters: {
           type: 'object',
           properties: {
@@ -82,7 +86,15 @@ export async function executeBuiltinTool(
 ): Promise<string> {
   if (name === HTTP_TOOL_NAME) {
     if (typeof args.url !== 'string') throw new Error('http_request requires a url')
-    return httpRequest(args as unknown as HttpRequestArgs)
+    const httpTool = tools.find((t) => t.type === 'http_request')
+    const merged: HttpRequestArgs = args as unknown as HttpRequestArgs
+    if (httpTool?.apiKey) {
+      merged.headers = {
+        Authorization: `Bearer ${httpTool.apiKey}`,
+        ...((args.headers as Record<string, string>) || {}),
+      }
+    }
+    return httpRequest(merged)
   }
   if (name === CODE_TOOL_NAME) {
     const codeTool = tools.find((t) => t.type === 'code_executor')

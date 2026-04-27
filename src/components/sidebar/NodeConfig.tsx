@@ -3,6 +3,7 @@
 import { Trash2, Plus, X } from 'lucide-react'
 import { useGraphStore } from '@/store/graphStore'
 import type { ToolConfig, ToolType } from '@/types'
+import { MODEL_OPTIONS } from '@/lib/models'
 import { cn } from '@/lib/cn'
 
 const TOOL_LABELS: Record<ToolType, string> = {
@@ -72,6 +73,23 @@ export function NodeConfig() {
             onChange={(e) => updateNodeData(node.id, { label: e.target.value })}
             className={inputCls}
           />
+        </Field>
+
+        <Field label="Model">
+          <select
+            value={data.model ?? ''}
+            onChange={(e) =>
+              updateNodeData(node.id, { model: e.target.value || undefined })
+            }
+            className={inputCls}
+          >
+            <option value="">Inherit from global</option>
+            {MODEL_OPTIONS.map((m) => (
+              <option key={m} value={m}>
+                {m}
+              </option>
+            ))}
+          </select>
         </Field>
 
         <Field label="System Prompt">
@@ -183,9 +201,25 @@ export function NodeConfig() {
                 )}
 
                 {tool.type === 'http_request' && (
-                  <p className="text-[11px] text-zinc-500">
-                    The agent decides URL, method, headers, and body at runtime.
-                  </p>
+                  <>
+                    <Field label="Base URL" small>
+                      <input
+                        value={tool.url || ''}
+                        onChange={(e) => setTool(i, { url: e.target.value })}
+                        placeholder="https://api.example.com/v1/..."
+                        className={inputCls}
+                      />
+                    </Field>
+                    <Field label="API Key" small>
+                      <input
+                        type="password"
+                        value={tool.apiKey || ''}
+                        onChange={(e) => setTool(i, { apiKey: e.target.value })}
+                        placeholder="Optional — sent as Authorization: Bearer …"
+                        className={inputCls}
+                      />
+                    </Field>
+                  </>
                 )}
               </div>
             ))}

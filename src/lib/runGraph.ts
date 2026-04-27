@@ -5,13 +5,15 @@ export async function runGraph(model?: string) {
   const state = useGraphStore.getState()
   if (state.running || state.nodes.length === 0) return
 
-  state.beginRun()
+  const controller = new AbortController()
+  state.beginRun(() => controller.abort())
 
   try {
     const res = await fetch('/api/execute', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ nodes: state.nodes, edges: state.edges, model }),
+      signal: controller.signal,
     })
 
     if (!res.ok || !res.body) {
@@ -43,10 +45,14 @@ export async function runGraph(model?: string) {
       }
     }
   } catch (err) {
-    useGraphStore.getState().setError(
-      '__graph__',
-      err instanceof Error ? err.message : String(err),
-    )
+    if (err instanceof Error && err.name === 'AbortError') {
+      // user stopped the run — not an error
+    } else {
+      useGraphStore.getState().setError(
+        '__graph__',
+        err instanceof Error ? err.message : String(err),
+      )
+    }
   } finally {
     useGraphStore.getState().endRun()
   }

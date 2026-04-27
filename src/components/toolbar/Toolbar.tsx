@@ -1,6 +1,6 @@
 'use client'
 
-import { Plus, Play, Trash2, Sparkles, Loader2 } from 'lucide-react'
+import { Play, Trash2, Sparkles, TextCursorInput, Bot, Square } from 'lucide-react'
 import { useState } from 'react'
 import { useGraphStore } from '@/store/graphStore'
 import { runGraph } from '@/lib/runGraph'
@@ -14,6 +14,7 @@ export function Toolbar() {
   const clear = useGraphStore((s) => s.clear)
   const loadGraph = useGraphStore((s) => s.loadGraph)
   const running = useGraphStore((s) => s.running)
+  const stopFn = useGraphStore((s) => s.stopFn)
   const nodes = useGraphStore((s) => s.nodes)
   const [model, setModel] = useState<string>(MODEL_OPTIONS[0])
 
@@ -35,8 +36,17 @@ export function Toolbar() {
 
       <div className="mx-2 h-6 w-px bg-zinc-800" />
 
-      <ToolbarButton onClick={() => addNode()} icon={<Plus className="h-4 w-4" />}>
-        Add Node
+      <ToolbarButton
+        onClick={() => addNode({ isInputNode: true })}
+        icon={<TextCursorInput className="h-4 w-4" />}
+      >
+        Input Node
+      </ToolbarButton>
+      <ToolbarButton
+        onClick={() => addNode()}
+        icon={<Bot className="h-4 w-4" />}
+      >
+        Agent Node
       </ToolbarButton>
       <ToolbarButton onClick={onLoadDemo} icon={<Sparkles className="h-4 w-4" />}>
         Load Demo
@@ -58,23 +68,29 @@ export function Toolbar() {
             </option>
           ))}
         </select>
-        <button
-          onClick={onRun}
-          disabled={running || nodes.length === 0}
-          className={cn(
-            'inline-flex h-9 items-center gap-2 rounded-md px-4 text-sm font-medium transition',
-            running || nodes.length === 0
-              ? 'cursor-not-allowed bg-zinc-800 text-zinc-500'
-              : 'bg-emerald-500 text-zinc-950 hover:bg-emerald-400',
-          )}
-        >
-          {running ? (
-            <Loader2 className="h-4 w-4 animate-spin" />
-          ) : (
+        {running ? (
+          <button
+            onClick={() => stopFn?.()}
+            className="inline-flex h-9 items-center gap-2 rounded-md bg-red-500/90 px-4 text-sm font-medium text-white transition hover:bg-red-500"
+          >
+            <Square className="h-4 w-4 fill-current" />
+            Stop
+          </button>
+        ) : (
+          <button
+            onClick={onRun}
+            disabled={nodes.length === 0}
+            className={cn(
+              'inline-flex h-9 items-center gap-2 rounded-md px-4 text-sm font-medium transition',
+              nodes.length === 0
+                ? 'cursor-not-allowed bg-zinc-800 text-zinc-500'
+                : 'bg-emerald-500 text-zinc-950 hover:bg-emerald-400',
+            )}
+          >
             <Play className="h-4 w-4" />
-          )}
-          {running ? 'Running' : 'Run'}
-        </button>
+            Run
+          </button>
+        )}
       </div>
     </div>
   )
