@@ -2,6 +2,9 @@
 
 A no-code visual builder for agentic workflows. Drag agent nodes onto a canvas, wire them into a graph, attach tools per node, and run the whole pipeline. Each node can connect to **any MCP (Model Context Protocol) server** — no proprietary plugin format, no vendor lock-in.
 
+https://github.com/user-attachments/assets/72d8cb4b-3025-4781-a5b2-57ef3806d08d
+
+
 ## The MCP differentiator
 
 n8n, Flowise, and MindStudio all ship their own bespoke tool/integration formats. To add a new capability you write a custom node, learn their abstractions, and wait for the marketplace to catch up.
