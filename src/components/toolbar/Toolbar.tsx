@@ -2,6 +2,7 @@
 
 import { Play, Trash2, Sparkles, TextCursorInput, Bot, Square } from 'lucide-react'
 import { useState } from 'react'
+import { Show, SignInButton, SignUpButton, UserButton } from '@clerk/nextjs'
 import { useGraphStore } from '@/store/graphStore'
 import { runGraph } from '@/lib/runGraph'
 import { marketResearchNodes, marketResearchEdges } from '@/components/demo/marketResearchFlow'
@@ -91,6 +92,24 @@ export function Toolbar() {
             Run
           </button>
         )}
+
+        <div className="ml-1 flex items-center gap-2 border-l border-zinc-800 pl-3">
+          <Show when="signed-out">
+            <SignInButton mode="modal">
+              <button className="inline-flex h-9 items-center rounded-md px-3 text-xs font-medium text-zinc-300 hover:bg-zinc-900 hover:text-zinc-100">
+                Sign in
+              </button>
+            </SignInButton>
+            <SignUpButton mode="modal">
+              <button className="inline-flex h-9 items-center rounded-md border border-zinc-700 bg-zinc-900 px-3 text-xs font-medium text-zinc-200 hover:border-zinc-600 hover:bg-zinc-800">
+                Sign up
+              </button>
+            </SignUpButton>
+          </Show>
+          <Show when="signed-in">
+            <UserButton />
+          </Show>
+        </div>
       </div>
     </div>
   )
