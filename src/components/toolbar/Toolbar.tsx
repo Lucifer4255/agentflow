@@ -10,6 +10,7 @@ import { runGraph } from '@/lib/runGraph'
 import { marketResearchNodes, marketResearchEdges } from '@/components/demo/marketResearchFlow'
 import { cn } from '@/lib/cn'
 import { MODEL_OPTIONS } from '@/lib/models'
+import { GraphMenu } from './GraphMenu'
 
 
 export function Toolbar() {
@@ -57,6 +58,10 @@ export function Toolbar() {
       <ToolbarButton onClick={clear} icon={<Trash2 className="h-4 w-4" />} variant="ghost">
         Clear
       </ToolbarButton>
+
+      <div className="mx-2 h-6 w-px bg-zinc-800" />
+
+      <GraphMenu />
 
       <div className="ml-auto flex items-center gap-2">
         <select

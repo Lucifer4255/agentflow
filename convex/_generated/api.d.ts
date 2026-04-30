@@ -8,7 +8,9 @@
  * @module
  */
 
+import type * as graphs from "../graphs.js";
 import type * as hello from "../hello.js";
+import type * as users from "../users.js";
 
 import type {
   ApiFromModules,
@@ -17,7 +19,9 @@ import type {
 } from "convex/server";
 
 declare const fullApi: ApiFromModules<{
+  graphs: typeof graphs;
   hello: typeof hello;
+  users: typeof users;
 }>;
 
 /**

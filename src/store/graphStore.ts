@@ -23,6 +23,9 @@ interface GraphState {
   errors: Record<string, string>
   activeOutputTab: string | null
   stopFn: (() => void) | null
+  currentGraphId: string | null
+  currentGraphName: string | null
+  setCurrentGraph: (id: string | null, name: string | null) => void
 
   onNodesChange: (changes: NodeChange[]) => void
   onEdgesChange: (changes: EdgeChange[]) => void
@@ -57,6 +60,10 @@ export const useGraphStore = create<GraphState>((set, get) => ({
   errors: {},
   activeOutputTab: null,
   stopFn: null,
+  currentGraphId: null,
+  currentGraphName: null,
+
+  setCurrentGraph: (id, name) => set({ currentGraphId: id, currentGraphName: name }),
 
   onNodesChange: (changes) =>
     set({ nodes: applyNodeChanges(changes, get().nodes) as AgentNode[] }),
@@ -174,5 +181,7 @@ export const useGraphStore = create<GraphState>((set, get) => ({
       running: false,
       currentNodeId: null,
       activeOutputTab: null,
+      currentGraphId: null,
+      currentGraphName: null,
     }),
 }))
