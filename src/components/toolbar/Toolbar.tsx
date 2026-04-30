@@ -3,6 +3,8 @@
 import { Play, Trash2, Sparkles, TextCursorInput, Bot, Square } from 'lucide-react'
 import { useState } from 'react'
 import { Show, SignInButton, SignUpButton, UserButton } from '@clerk/nextjs'
+import { useQuery } from 'convex/react'
+import { api } from '../../../convex/_generated/api'
 import { useGraphStore } from '@/store/graphStore'
 import { runGraph } from '@/lib/runGraph'
 import { marketResearchNodes, marketResearchEdges } from '@/components/demo/marketResearchFlow'
@@ -93,6 +95,8 @@ export function Toolbar() {
           </button>
         )}
 
+        <ConvexStatus />
+
         <div className="ml-1 flex items-center gap-2 border-l border-zinc-800 pl-3">
           <Show when="signed-out">
             <SignInButton mode="modal">
@@ -112,6 +116,29 @@ export function Toolbar() {
         </div>
       </div>
     </div>
+  )
+}
+
+function ConvexStatus() {
+  const me = useQuery(api.hello.whoami)
+  if (me === undefined) {
+    return (
+      <span className="ml-2 font-mono text-[10px] uppercase tracking-wider text-zinc-500">
+        convex…
+      </span>
+    )
+  }
+  if (!me.signedIn) {
+    return (
+      <span className="ml-2 font-mono text-[10px] uppercase tracking-wider text-zinc-500">
+        convex: anon
+      </span>
+    )
+  }
+  return (
+    <span className="ml-2 font-mono text-[10px] uppercase tracking-wider text-emerald-400">
+      ✓ {me.email ?? me.name ?? 'connected'}
+    </span>
   )
 }
 
