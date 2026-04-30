@@ -11,7 +11,9 @@
   "dependencies": {
     "@clerk/nextjs": "^7.2.8",
     "@modelcontextprotocol/sdk": "^1.29.0",
+    "@openrouter/ai-sdk-provider": "^2.9.0",
     "@xyflow/react": "^12.10.2",
+    "ai": "^6.0.170",
     "clsx": "^2.1.1",
     "convex": "^1.36.1",
     "lucide-react": "^1.11.0",

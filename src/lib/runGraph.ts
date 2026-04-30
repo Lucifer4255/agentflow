@@ -64,6 +64,9 @@ function handleEvent(event: ExecutionEvent) {
     case 'node_start':
       store.setCurrentNode(event.nodeId)
       break
+    case 'node_delta':
+      store.appendOutput(event.nodeId, event.text)
+      break
     case 'node_done':
       store.setOutput(event.nodeId, event.output)
       break

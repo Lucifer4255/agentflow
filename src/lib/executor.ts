@@ -4,15 +4,18 @@ import { runAgent } from '@/lib/agents/runAgent'
 
 export type ExecutionEvent =
   | { type: 'node_start'; nodeId: string }
-  | { type: 'node_done'; nodeId: string; output: string }
+  | { type: 'node_delta'; nodeId: string; text: string }
+  | {
+      type: 'node_done'
+      nodeId: string
+      output: string
+      inputTokens: number
+      outputTokens: number
+    }
   | { type: 'node_error'; nodeId: string; error: string }
   | { type: 'graph_done' }
   | { type: 'graph_error'; error: string }
 
-/**
- * Group nodes into levels via Kahn's algorithm. Nodes in the same level have
- * no dependencies on each other and can run concurrently.
- */
 function topologicalLevels(nodes: AgentNode[], edges: Edge[]): string[][] {
   const inDegree: Record<string, number> = {}
   const adj: Record<string, string[]> = {}
@@ -55,6 +58,7 @@ export async function* executeGraph(
   nodes: AgentNode[],
   edges: Edge[],
   modelOverride?: string,
+  signal?: AbortSignal,
 ): AsyncGenerator<ExecutionEvent> {
   const outputs: Record<string, string> = {}
   let levels: string[][]
@@ -72,43 +76,71 @@ export async function* executeGraph(
   }
 
   for (const level of levels) {
-    // Yield start events first so UI lights all parallel nodes at once
-    for (const id of level) yield { type: 'node_start', nodeId: id }
-
-    const results = await Promise.all(
-      level.map(async (id) => {
-        const node = nodesById.get(id)!
-        const incoming = incomingByTarget[id] || []
-        const upstream = incoming
-          .map((e) => {
-            const src = nodesById.get(e.source)
-            return `[${src?.data.label ?? e.source} output]:\n${outputs[e.source] ?? ''}`
-          })
-          .join('\n\n')
-
-        try {
-          const output = await runAgent(node.data, upstream, modelOverride)
-          return { id, ok: true as const, output }
-        } catch (err) {
-          return {
-            id,
-            ok: false as const,
-            error: err instanceof Error ? err.message : String(err),
-          }
-        }
-      }),
-    )
-
-    let levelHadError = false
-    for (const r of results) {
-      if (r.ok) {
-        outputs[r.id] = r.output
-        yield { type: 'node_done', nodeId: r.id, output: r.output }
-      } else {
-        levelHadError = true
-        yield { type: 'node_error', nodeId: r.id, error: r.error }
-      }
+    // Queue interleaves deltas + completions across parallel nodes
+    const queue: ExecutionEvent[] = []
+    let wake: (() => void) | null = null
+    const push = (e: ExecutionEvent) => {
+      queue.push(e)
+      const w = wake
+      wake = null
+      w?.()
     }
+
+    for (const id of level) push({ type: 'node_start', nodeId: id })
+
+    let remaining = level.length
+    let levelHadError = false
+
+    for (const id of level) {
+      const node = nodesById.get(id)!
+      const incoming = incomingByTarget[id] || []
+      const upstream = incoming
+        .map((e) => {
+          const src = nodesById.get(e.source)
+          return `[${src?.data.label ?? e.source} output]:\n${outputs[e.source] ?? ''}`
+        })
+        .join('\n\n')
+
+      runAgent(node.data, upstream, modelOverride, {
+        signal,
+        onDelta: (text) => push({ type: 'node_delta', nodeId: id, text }),
+      })
+        .then((res) => {
+          outputs[id] = res.text
+          push({
+            type: 'node_done',
+            nodeId: id,
+            output: res.text,
+            inputTokens: res.inputTokens,
+            outputTokens: res.outputTokens,
+          })
+        })
+        .catch((err) => {
+          levelHadError = true
+          push({
+            type: 'node_error',
+            nodeId: id,
+            error: err instanceof Error ? err.message : String(err),
+          })
+        })
+        .finally(() => {
+          remaining--
+          const w = wake
+          wake = null
+          w?.()
+        })
+    }
+
+    while (remaining > 0 || queue.length > 0) {
+      if (queue.length === 0) {
+        await new Promise<void>((resolve) => {
+          wake = resolve
+        })
+        continue
+      }
+      yield queue.shift()!
+    }
+
     if (levelHadError) return
   }
 

@@ -38,6 +38,7 @@ interface GraphState {
 
   setStatus: (id: string, status: AgentNodeData['status']) => void
   setOutput: (id: string, output: string) => void
+  appendOutput: (id: string, delta: string) => void
   setError: (id: string, error: string) => void
   beginRun: (stopFn: () => void) => void
   endRun: () => void
@@ -123,6 +124,18 @@ export const useGraphStore = create<GraphState>((set, get) => ({
       ),
       activeOutputTab: get().activeOutputTab ?? id,
     }),
+
+  appendOutput: (id, delta) => {
+    const prev = get().outputs[id] ?? ''
+    const next = prev + delta
+    set({
+      outputs: { ...get().outputs, [id]: next },
+      nodes: get().nodes.map((n) =>
+        n.id === id ? { ...n, data: { ...n.data, output: next, status: 'running' } } : n,
+      ),
+      activeOutputTab: get().activeOutputTab ?? id,
+    })
+  },
 
   setError: (id, error) =>
     set({

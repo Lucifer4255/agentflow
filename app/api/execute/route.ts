@@ -31,7 +31,7 @@ export async function POST(request: Request) {
         controller.enqueue(encoder.encode(JSON.stringify(event) + '\n'))
       }
       try {
-        for await (const event of executeGraph(nodes, edges, model)) {
+        for await (const event of executeGraph(nodes, edges, model, request.signal)) {
           send(event)
         }
       } catch (err) {
