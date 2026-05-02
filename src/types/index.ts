@@ -19,7 +19,7 @@ export interface ToolConfig {
   method?: "GET" | "POST" | "PUT" | "DELETE" | "PATCH";
   headers?: Record<string, string>;
   body?: string;
-  apiKey?: string;
+  apiKey?: string; // "sk-..." → Bearer · "__env__:VAR" → Bearer from env · "?param=__env__:VAR" → query param
   // code_executor
   language?: "python" | "javascript";
   // mcp

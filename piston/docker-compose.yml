@@ -1,0 +1,13 @@
+services:
+  piston:
+    build: .
+    ports:
+      - "2000:2000"
+    volumes:
+      - piston_packages:/piston/packages
+    privileged: true
+    cgroup: host
+    restart: unless-stopped
+
+volumes:
+  piston_packages:

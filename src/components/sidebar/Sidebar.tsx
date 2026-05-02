@@ -12,12 +12,16 @@ import {
   XCircle,
   CircleDot,
   Square,
+  ChevronDown,
+  ChevronRight,
 } from 'lucide-react'
 import { Show, SignInButton, SignUpButton, UserButton, useUser } from '@clerk/nextjs'
 import { useQuery } from 'convex/react'
 import { api } from '../../../convex/_generated/api'
+import type { Id } from '../../../convex/_generated/dataModel'
 import { useGraphStore } from '@/store/graphStore'
 import { cn } from '@/lib/cn'
+import { estimateCost, formatCost } from '@/lib/modelCost'
 import {
   Sidebar as ShadSidebar,
   SidebarContent,
@@ -289,9 +293,36 @@ function WorkflowsSection() {
 
 /* ─────────────────────────  History  ───────────────────────── */
 
+type RunSummary = {
+  _id: string
+  status: 'running' | 'done' | 'error' | 'stopped'
+  model: string
+  startedAt: number
+  finishedAt: number | null
+  totalInputTokens: number
+  totalOutputTokens: number
+  graphName: string
+}
+
+function formatDuration(startedAt: number, finishedAt: number | null): string {
+  const ms = (finishedAt ?? Date.now()) - startedAt
+  if (ms < 1000) return `${ms}ms`
+  const s = ms / 1000
+  if (s < 60) return `${s.toFixed(1)}s`
+  return `${Math.floor(s / 60)}m ${Math.floor(s % 60)}s`
+}
+
+function formatTokens(n: number): string {
+  if (n < 1000) return String(n)
+  if (n < 100_000) return `${(n / 1000).toFixed(1)}k`
+  return `${Math.round(n / 1000)}k`
+}
+
 function HistorySection() {
   const { isSignedIn } = useUser()
   const runs = useQuery(api.runs.listRecent, isSignedIn ? {} : 'skip')
+  const [selectedRunId, setSelectedRunId] = useState<string | null>(null)
+  const toggle = (id: string) => setSelectedRunId((prev) => (prev === id ? null : id))
 
   if (!isSignedIn) {
     return <SignedOutPrompt label="Sign in to see your run history" />
@@ -323,7 +354,16 @@ function HistorySection() {
           />
         ) : (
           <SidebarMenu>
-            {runs.map((r) => <HistoryRow key={r._id} run={r} />)}
+            {runs.map((r) => (
+              <div key={r._id}>
+                <HistoryRow
+                  run={r}
+                  isExpanded={selectedRunId === r._id}
+                  onToggle={() => toggle(r._id)}
+                />
+                {selectedRunId === r._id && <RunDetail run={r} />}
+              </div>
+            ))}
           </SidebarMenu>
         )}
       </SidebarGroupContent>
@@ -333,51 +373,50 @@ function HistorySection() {
 
 function HistoryRow({
   run,
+  isExpanded,
+  onToggle,
 }: {
-  run: {
-    _id: string
-    status: 'running' | 'done' | 'error' | 'stopped'
-    model: string
-    startedAt: number
-    finishedAt: number | null
-    totalInputTokens: number
-    totalOutputTokens: number
-    graphName: string
-  }
+  run: RunSummary
+  isExpanded: boolean
+  onToggle: () => void
 }) {
   const palette = statusPalette(run.status)
-  const total = run.totalInputTokens + run.totalOutputTokens
+  const cost = estimateCost(run.model, run.totalInputTokens, run.totalOutputTokens)
+
   return (
     <SidebarMenuItem>
-      <SidebarMenuButton className="h-auto flex-col items-start gap-0.5 py-2">
+      <SidebarMenuButton
+        onClick={onToggle}
+        isActive={isExpanded}
+        className="h-auto flex-col items-start gap-0.5 py-2"
+      >
         <div className="flex w-full items-center gap-2">
           <span className={cn('shrink-0', palette.text)}>{palette.icon}</span>
-          <span className="truncate text-[12px] text-sidebar-foreground">
+          <span className="min-w-0 flex-1 truncate text-[12px] text-sidebar-foreground">
             {run.graphName}
           </span>
+          {isExpanded
+            ? <ChevronDown className="h-3 w-3 shrink-0 text-muted-foreground" />
+            : <ChevronRight className="h-3 w-3 shrink-0 text-muted-foreground" />
+          }
         </div>
-        <div className="flex items-center gap-1 pl-5">
-          <span
-            style={mono}
-            className={cn('text-[9px] uppercase tracking-[0.16em]', palette.text)}
-          >
+        <div className="flex flex-wrap items-center gap-1 pl-5">
+          <span style={mono} className={cn('text-[9px] uppercase tracking-[0.16em]', palette.text)}>
             {run.status}
           </span>
           <span className="h-0.5 w-0.5 rounded-full bg-muted-foreground/60" />
-          <span
-            style={mono}
-            className="text-[9px] uppercase tracking-[0.14em] text-muted-foreground"
-          >
+          <span style={mono} className="text-[9px] uppercase tracking-[0.14em] text-muted-foreground">
             {relativeTime(run.startedAt)}
           </span>
-          {total > 0 && (
+          <span className="h-0.5 w-0.5 rounded-full bg-muted-foreground/60" />
+          <span style={mono} className="text-[9px] uppercase tracking-[0.14em] text-muted-foreground">
+            {formatDuration(run.startedAt, run.finishedAt)}
+          </span>
+          {cost !== null && (
             <>
               <span className="h-0.5 w-0.5 rounded-full bg-muted-foreground/60" />
-              <span
-                style={mono}
-                className="text-[9px] uppercase tracking-[0.14em] text-muted-foreground"
-              >
-                {total} tok
+              <span style={mono} className="text-[9px] uppercase tracking-[0.14em] text-emerald-500/80">
+                {formatCost(cost)}
               </span>
             </>
           )}
@@ -385,6 +424,87 @@ function HistoryRow({
       </SidebarMenuButton>
     </SidebarMenuItem>
   )
+}
+
+function RunDetail({ run }: { run: RunSummary }) {
+  const events = useQuery(api.runs.getEvents, { runId: run._id as Id<'runs'> })
+  const storeNodes = useGraphStore((s) => s.nodes)
+
+  if (!events) {
+    return (
+      <div className="mx-2 mb-1 rounded-md border border-sidebar-border bg-sidebar-accent/30 px-3 py-2">
+        <p style={mono} className="text-[9px] uppercase tracking-[0.16em] text-muted-foreground">Loading…</p>
+      </div>
+    )
+  }
+
+  const summaries = deriveNodeSummaries(events, storeNodes)
+
+  return (
+    <div className="mx-2 mb-1 space-y-1 rounded-md border border-sidebar-border bg-sidebar-accent/30 p-2">
+      {summaries.length === 0 ? (
+        <p style={mono} className="px-1 text-[9px] uppercase tracking-[0.16em] text-muted-foreground">No events</p>
+      ) : summaries.map((s) => {
+        const palette = statusPalette(s.status)
+        const cost = estimateCost(run.model, s.inputTokens, s.outputTokens)
+        const total = s.inputTokens + s.outputTokens
+        return (
+          <div key={s.nodeId} className="rounded border border-sidebar-border/60 bg-background/30 px-2.5 py-2">
+            <div className="flex items-center justify-between gap-2">
+              <div className="flex min-w-0 items-center gap-1.5">
+                <span className={cn('shrink-0', palette.text)}>{palette.icon}</span>
+                <span style={mono} className="truncate text-[10px] uppercase tracking-[0.14em]">{s.label}</span>
+              </div>
+              <div className="flex shrink-0 items-center gap-1.5">
+                {total > 0 && (
+                  <span style={mono} className="text-[9px] uppercase tracking-[0.12em] text-muted-foreground">
+                    {formatTokens(s.inputTokens)}↑ {formatTokens(s.outputTokens)}↓
+                  </span>
+                )}
+                {cost !== null && cost > 0 && (
+                  <span style={mono} className="text-[9px] text-emerald-500/70">{formatCost(cost)}</span>
+                )}
+              </div>
+            </div>
+            {s.output && (
+              <p className="mt-1 line-clamp-2 pl-4 text-[10.5px] leading-relaxed text-muted-foreground">{s.output}</p>
+            )}
+            {s.error && (
+              <p className="mt-1 line-clamp-2 pl-4 text-[10.5px] leading-relaxed text-red-400">{s.error}</p>
+            )}
+          </div>
+        )
+      })}
+    </div>
+  )
+}
+
+function deriveNodeSummaries(
+  events: { nodeId: string; kind: string; text: string | null; inputTokens: number | null; outputTokens: number | null }[],
+  storeNodes: { id: string; data: { label?: string } }[],
+) {
+  const order: string[] = []
+  const map = new Map<string, { nodeId: string; label: string; status: 'running' | 'done' | 'error'; inputTokens: number; outputTokens: number; output: string | null; error: string | null }>()
+
+  for (const e of events) {
+    if (!map.has(e.nodeId)) {
+      order.push(e.nodeId)
+      const node = storeNodes.find((n) => n.id === e.nodeId)
+      map.set(e.nodeId, { nodeId: e.nodeId, label: node?.data?.label ?? e.nodeId, status: 'running', inputTokens: 0, outputTokens: 0, output: null, error: null })
+    }
+    const s = map.get(e.nodeId)!
+    if (e.kind === 'node_end') {
+      s.status = 'done'
+      s.inputTokens = e.inputTokens ?? 0
+      s.outputTokens = e.outputTokens ?? 0
+      s.output = e.text
+    } else if (e.kind === 'node_error') {
+      s.status = 'error'
+      s.error = e.text
+    }
+  }
+
+  return order.map((id) => map.get(id)!)
 }
 
 function statusPalette(status: 'running' | 'done' | 'error' | 'stopped') {

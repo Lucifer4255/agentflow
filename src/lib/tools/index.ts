@@ -55,15 +55,20 @@ export function buildBuiltinToolDefinitions(tools: ToolConfig[]): OpenAIToolDef[
       function: {
         name: HTTP_TOOL_NAME,
         description:
-          `Make an HTTP request to any URL. Use this to fetch data from public APIs, web pages, or webhooks.${urlHint}`,
+          `Make an HTTP request.${urlHint ? ` Use the pre-configured endpoint unless told otherwise: ${httpTool!.url}` : ' Provide the full URL.'}`,
         parameters: {
           type: 'object',
           properties: {
-            url: { type: 'string', description: 'The full URL to request.' },
+            url: { type: 'string', description: httpTool?.url ? `Base URL — defaults to ${httpTool.url}` : 'The full URL to request.' },
             method: {
               type: 'string',
               enum: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH'],
               description: 'HTTP method. Defaults to GET.',
+            },
+            params: {
+              type: 'object',
+              description: 'Query parameters as key/value pairs — appended to the URL.',
+              additionalProperties: { type: 'string' },
             },
             headers: {
               type: 'object',
@@ -126,13 +131,25 @@ export async function executeBuiltinTool(
   }
 
   if (name === HTTP_TOOL_NAME) {
-    if (typeof args.url !== 'string') throw new Error('http_request requires a url')
     const httpTool = tools.find((t) => t.type === 'http_request')
+    if (typeof args.url !== 'string') {
+      if (httpTool?.url) args = { ...args, url: httpTool.url }
+      else throw new Error('http_request requires a url')
+    }
     const merged: HttpRequestArgs = args as unknown as HttpRequestArgs
     if (httpTool?.apiKey) {
-      merged.headers = {
-        Authorization: `Bearer ${httpTool.apiKey}`,
-        ...((args.headers as Record<string, string>) || {}),
+      const auth = resolveHttpApiKey(httpTool.apiKey)
+      if (auth) {
+        if (auth.param) {
+          const url = new URL(merged.url)
+          url.searchParams.set(auth.param, auth.key)
+          merged.url = url.toString()
+        } else {
+          merged.headers = {
+            Authorization: `Bearer ${auth.key}`,
+            ...((args.headers as Record<string, string>) || {}),
+          }
+        }
       }
     }
     return httpRequest(merged)
@@ -149,4 +166,25 @@ function resolveWebSearchApiKey(raw: string, provider: string): string | undefin
   if (raw !== '__env__') return raw || undefined
   if (provider === 'firecrawl') return process.env.FIRECRAWL_API_KEY
   return process.env.EXA_API_KEY
+}
+
+// Parses apiKey field: "?param=value" → query param · "__env__:VAR" → Bearer from env · plain value → Bearer
+function resolveHttpApiKey(raw: string): { key: string; param?: string } | null {
+  if (!raw) return null
+  if (raw.startsWith('?')) {
+    const eq = raw.indexOf('=')
+    if (eq === -1) return null
+    const param = raw.slice(1, eq)
+    const keyRaw = raw.slice(eq + 1)
+    const key = resolveEnvSentinel(keyRaw)
+    return key ? { key, param } : null
+  }
+  const key = resolveEnvSentinel(raw)
+  return key ? { key } : null
+}
+
+function resolveEnvSentinel(raw: string): string | undefined {
+  if (!raw.startsWith('__env__')) return raw || undefined
+  const varName = raw.includes(':') ? raw.split(':')[1] : undefined
+  return varName ? process.env[varName] : undefined
 }

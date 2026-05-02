@@ -59,17 +59,27 @@ export const marketResearchNodes: AgentNode[] = [
     data: {
       label: 'Financials Agent',
       systemPrompt:
-        'You are a financial data analyst. Use the HTTP request tool to fetch public financial data for the company from Yahoo Finance (https://query1.finance.yahoo.com/v8/finance/chart/TICKER). Analyse recent price trend, market cap, and financial highlights.',
-      tools: [{ type: 'http_request' }],
+        'You are a financial data analyst. Use the HTTP request tool to fetch data from Alpha Vantage. ' +
+        'Make TWO requests to the pre-configured endpoint using the params field:\n' +
+        '1. params: { function: "GLOBAL_QUOTE", symbol: "<ticker>" } — real-time price and change\n' +
+        '2. params: { function: "OVERVIEW", symbol: "<ticker>" } — fundamentals and company data\n' +
+        'Substitute <ticker> with the actual ticker symbol from the input. ' +
+        'Analyse the price, change percentage, market cap, P/E ratio, EPS, and 52-week range.',
+      tools: [{
+        type: 'http_request',
+        method: 'GET',
+        url: 'https://www.alphavantage.co/query',
+        apiKey: '?apikey=__env__:ALPHA_VANTAGE_API_KEY',
+      }],
       inputSchema: [
         { key: 'company', type: 'string', description: 'Company name' },
         { key: 'ticker', type: 'string', description: 'Stock ticker to fetch data for' },
       ],
       outputSchema: [
         { key: 'currentPrice', type: 'string', description: 'Current or most recent stock price with currency' },
-        { key: 'priceChange', type: 'string', description: 'Price change over the past week or month' },
-        { key: 'marketCap', type: 'string', description: 'Market capitalisation if available' },
-        { key: 'financialHighlights', type: 'string', description: 'Key financial metrics and trends' },
+        { key: 'priceChange', type: 'string', description: 'Price change and percentage over the last trading day' },
+        { key: 'marketCap', type: 'string', description: 'Market capitalisation' },
+        { key: 'financialHighlights', type: 'string', description: 'Key metrics: P/E ratio, EPS, 52-week range, analyst target' },
       ],
       status: 'idle',
     },

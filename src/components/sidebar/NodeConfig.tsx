@@ -128,28 +128,26 @@ export function NodeConfig() {
         </Field>
 
         <div className="mt-6">
-          <div className="mb-2 flex items-center justify-between">
-            <label className="text-xs font-semibold uppercase tracking-wider text-zinc-400">
-              Tools
-            </label>
-            <div className="flex gap-1">
-              {([
-                ['web_search', 'Search'],
-                ['http_request', 'HTTP'],
-                ['code_executor', 'Code'],
-                ['mcp', 'MCP'],
-              ] as [ToolType, string][]).map(([t, label]) => (
-                <button
-                  key={t}
-                  onClick={() => addTool(t)}
-                  className="inline-flex items-center gap-1 rounded border border-zinc-700 bg-zinc-900 px-2 py-1 text-[10px] text-zinc-300 hover:border-zinc-600 hover:bg-zinc-800"
-                  title={`Add ${TOOL_LABELS[t]}`}
-                >
-                  <Plus className="h-3 w-3" />
-                  {label}
-                </button>
-              ))}
-            </div>
+          <label className="text-[10px] font-semibold uppercase tracking-wider text-zinc-500">
+            Tools
+          </label>
+          <div className="mt-1.5 mb-2 flex flex-wrap gap-1">
+            {([
+              ['web_search', 'Search'],
+              ['http_request', 'HTTP'],
+              ['code_executor', 'Code'],
+              ['mcp', 'MCP'],
+            ] as [ToolType, string][]).map(([t, label]) => (
+              <button
+                key={t}
+                onClick={() => addTool(t)}
+                className="inline-flex items-center gap-1 rounded border border-zinc-700 bg-zinc-900 px-2 py-1 text-[10px] text-zinc-300 hover:border-zinc-600 hover:bg-zinc-800"
+                title={`Add ${TOOL_LABELS[t]}`}
+              >
+                <Plus className="h-3 w-3" />
+                {label}
+              </button>
+            ))}
           </div>
 
           {tools.length === 0 && (
@@ -274,7 +272,7 @@ export function NodeConfig() {
                         type="password"
                         value={tool.apiKey || ''}
                         onChange={(e) => setTool(i, { apiKey: e.target.value })}
-                        placeholder="Optional — sent as Authorization: Bearer …"
+                        placeholder="sk-… · __env__:VAR · ?param=__env__:VAR"
                         className={inputCls}
                       />
                     </Field>

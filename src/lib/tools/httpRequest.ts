@@ -1,13 +1,20 @@
 export interface HttpRequestArgs {
     url: string
     method?: 'GET' | 'POST' | 'PUT' | 'DELETE' | 'PATCH'
+    params?: Record<string, string>
     headers?: Record<string, string>
     body?: string
   }
-  
+
   export async function httpRequest(args: HttpRequestArgs): Promise<string> {
     const method = args.method || 'GET'
-    const response = await fetch(args.url, {
+    let resolvedUrl = args.url
+    if (args.params && Object.keys(args.params).length > 0) {
+      const url = new URL(resolvedUrl)
+      for (const [k, v] of Object.entries(args.params)) url.searchParams.set(k, v)
+      resolvedUrl = url.toString()
+    }
+    const response = await fetch(resolvedUrl, {
       method,
       headers: args.headers,
       body: method === 'GET' ? undefined : args.body,
