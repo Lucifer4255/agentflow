@@ -26,6 +26,9 @@ interface GraphState {
   currentGraphId: string | null
   currentGraphName: string | null
   setCurrentGraph: (id: string | null, name: string | null) => void
+  sidebarOpen: boolean
+  toggleSidebar: () => void
+  setSidebarOpen: (open: boolean) => void
 
   onNodesChange: (changes: NodeChange[]) => void
   onEdgesChange: (changes: EdgeChange[]) => void
@@ -65,6 +68,9 @@ export const useGraphStore = create<GraphState>((set, get) => ({
   currentGraphName: null,
 
   setCurrentGraph: (id, name) => set({ currentGraphId: id, currentGraphName: name }),
+  sidebarOpen: false,
+  toggleSidebar: () => set({ sidebarOpen: !get().sidebarOpen }),
+  setSidebarOpen: (open) => set({ sidebarOpen: open }),
 
   onNodesChange: (changes) =>
     set({ nodes: applyNodeChanges(changes, get().nodes) as AgentNode[] }),

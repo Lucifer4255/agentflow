@@ -1,7 +1,6 @@
 'use client'
 
-import { useEffect, useLayoutEffect, useRef, useState } from 'react'
-import { createPortal } from 'react-dom'
+import { useEffect, useState } from 'react'
 import { Save, FolderOpen, FilePlus2, ChevronDown, Search, Workflow } from 'lucide-react'
 import { useAuth } from '@clerk/nextjs'
 import { useMutation, useQuery } from 'convex/react'
@@ -9,6 +8,15 @@ import { api } from '../../../convex/_generated/api'
 import type { Id } from '../../../convex/_generated/dataModel'
 import { useGraphStore } from '@/store/graphStore'
 import { cn } from '@/lib/cn'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
+import { Input } from '@/components/ui/input'
+import { Badge } from '@/components/ui/badge'
 
 const serif: React.CSSProperties = { fontFamily: 'var(--font-fraunces)' }
 const mono: React.CSSProperties = { fontFamily: 'var(--font-geist-mono)' }
@@ -43,53 +51,13 @@ export function GraphMenu() {
   const currentGraphName = useGraphStore((s) => s.currentGraphName)
   const setCurrentGraph = useGraphStore((s) => s.setCurrentGraph)
 
-  const [openMenu, setOpenMenu] = useState(false)
   const [saving, setSaving] = useState(false)
   const [justSaved, setJustSaved] = useState(false)
-  const [query, setQuery] = useState('')
-  const [panelPos, setPanelPos] = useState<{ top: number; left: number } | null>(null)
-  const wrapperRef = useRef<HTMLDivElement>(null)
-  const openBtnRef = useRef<HTMLButtonElement>(null)
-  const panelRef = useRef<HTMLDivElement>(null)
+  const [filter, setFilter] = useState('')
 
   useEffect(() => {
     if (isSignedIn) getOrCreateUser({}).catch(() => {})
   }, [isSignedIn, getOrCreateUser])
-
-  useLayoutEffect(() => {
-    if (!openMenu) return
-    const update = () => {
-      const r = openBtnRef.current?.getBoundingClientRect()
-      if (!r) return
-      setPanelPos({ top: r.bottom + 8, left: r.right - 360 })
-    }
-    update()
-    window.addEventListener('resize', update)
-    window.addEventListener('scroll', update, true)
-    return () => {
-      window.removeEventListener('resize', update)
-      window.removeEventListener('scroll', update, true)
-    }
-  }, [openMenu])
-
-  useEffect(() => {
-    if (!openMenu) return
-    const onDocClick = (e: MouseEvent) => {
-      const t = e.target as Node
-      if (wrapperRef.current?.contains(t)) return
-      if (panelRef.current?.contains(t)) return
-      setOpenMenu(false)
-    }
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') setOpenMenu(false)
-    }
-    document.addEventListener('click', onDocClick)
-    document.addEventListener('keydown', onKey)
-    return () => {
-      document.removeEventListener('click', onDocClick)
-      document.removeEventListener('keydown', onKey)
-    }
-  }, [openMenu])
 
   if (!isSignedIn) return null
 
@@ -118,168 +86,159 @@ export function GraphMenu() {
   }
 
   const filtered =
-    myGraphs?.filter((g) => g.name.toLowerCase().includes(query.toLowerCase())) ?? []
+    myGraphs?.filter((g) => g.name.toLowerCase().includes(filter.toLowerCase())) ?? []
   const hasGraphs = (myGraphs?.length ?? 0) > 0
   const showSearch = (myGraphs?.length ?? 0) >= 5
 
   return (
-    <div ref={wrapperRef} className="relative flex items-center">
-      <div className="flex h-9 items-stretch overflow-hidden rounded-md border border-zinc-700/80 bg-zinc-900/80 shadow-[inset_0_1px_0_0_rgba(255,255,255,0.03)] transition-colors hover:border-zinc-600/80">
-        {/* NEW */}
-        <button
-          onClick={onNew}
-          className="group flex items-center gap-1.5 px-3 text-xs text-zinc-400 transition-colors hover:bg-zinc-800/70 hover:text-zinc-100"
-          title="New workflow"
-        >
-          <FilePlus2 className="h-3.5 w-3.5" />
-          <span style={mono} className="text-[10px] uppercase tracking-[0.14em]">
-            New
+    <div className="flex h-9 items-stretch overflow-hidden rounded-md border border-zinc-700/80 bg-zinc-900/80 shadow-[inset_0_1px_0_0_rgba(255,255,255,0.03)] transition-colors hover:border-zinc-600/80">
+      <button
+        onClick={onNew}
+        className="flex items-center gap-1.5 px-3 text-xs text-zinc-400 transition-colors hover:bg-zinc-800/70 hover:text-zinc-100"
+        title="New workflow"
+      >
+        <FilePlus2 className="h-3.5 w-3.5" />
+        <span style={mono} className="text-[10px] uppercase tracking-[0.14em]">
+          New
+        </span>
+      </button>
+
+      <Divider />
+
+      <button
+        onClick={onSave}
+        disabled={saving || nodes.length === 0}
+        className={cn(
+          'group relative flex items-center gap-2.5 px-3 text-xs transition-colors',
+          nodes.length === 0
+            ? 'cursor-not-allowed text-zinc-600'
+            : 'text-zinc-200 hover:bg-zinc-800/70',
+        )}
+        title={currentGraphName ? `Save changes to ${currentGraphName}` : 'Save workflow'}
+      >
+        <span className="relative flex h-4 w-4 items-center justify-center">
+          <Save
+            className={cn('h-3.5 w-3.5 transition-opacity', justSaved ? 'opacity-0' : 'opacity-100')}
+          />
+          <span
+            className={cn(
+              'absolute inset-0 flex items-center justify-center text-emerald-400 transition-opacity',
+              justSaved ? 'opacity-100' : 'opacity-0',
+            )}
+          >
+            <CheckIcon />
           </span>
-        </button>
+        </span>
 
-        <Divider />
-
-        {/* SAVE */}
-        <button
-          onClick={onSave}
-          disabled={saving || nodes.length === 0}
-          className={cn(
-            'group relative flex items-center gap-2.5 px-3 text-xs transition-colors',
-            nodes.length === 0
-              ? 'cursor-not-allowed text-zinc-600'
-              : 'text-zinc-200 hover:bg-zinc-800/70',
-          )}
-          title={currentGraphName ? `Save changes to ${currentGraphName}` : 'Save workflow'}
-        >
-          <span className="relative flex h-4 w-4 items-center justify-center">
-            <Save
-              className={cn(
-                'h-3.5 w-3.5 transition-opacity',
-                justSaved ? 'opacity-0' : 'opacity-100',
-              )}
-            />
+        {currentGraphId && currentGraphName ? (
+          <span className="flex flex-col items-start leading-none">
             <span
-              className={cn(
-                'absolute inset-0 flex items-center justify-center text-emerald-400 transition-opacity',
-                justSaved ? 'opacity-100' : 'opacity-0',
-              )}
+              style={mono}
+              className="text-[9px] uppercase tracking-[0.18em] text-zinc-500 group-hover:text-zinc-400"
             >
-              <CheckIcon />
+              {saving ? 'Saving' : justSaved ? 'Saved' : 'Save to'}
+            </span>
+            <span
+              style={serif}
+              className="mt-0.5 max-w-[160px] truncate text-[13px] italic leading-tight text-zinc-100"
+            >
+              {currentGraphName}
             </span>
           </span>
+        ) : (
+          <span style={mono} className="text-[10px] uppercase tracking-[0.14em]">
+            {saving ? 'Saving…' : justSaved ? 'Saved' : 'Save'}
+          </span>
+        )}
+        {currentGraphId && (
+          <span
+            className={cn(
+              'ml-1 h-1.5 w-1.5 rounded-full transition-colors',
+              justSaved ? 'bg-emerald-400' : 'bg-zinc-700 group-hover:bg-zinc-500',
+            )}
+          />
+        )}
+      </button>
 
-          {currentGraphId && currentGraphName ? (
-            <span className="flex flex-col items-start leading-none">
-              <span
-                style={mono}
-                className="text-[9px] uppercase tracking-[0.18em] text-zinc-500 group-hover:text-zinc-400"
-              >
-                {saving ? 'Saving' : justSaved ? 'Saved' : 'Save to'}
-              </span>
-              <span
-                style={serif}
-                className="mt-0.5 max-w-[160px] truncate text-[13px] italic leading-tight text-zinc-100"
-              >
-                {currentGraphName}
-              </span>
-            </span>
-          ) : (
-            <span style={mono} className="text-[10px] uppercase tracking-[0.14em]">
-              {saving ? 'Saving…' : justSaved ? 'Saved' : 'Save'}
-            </span>
-          )}
-          {currentGraphId && (
-            <span
-              className={cn(
-                'ml-1 h-1.5 w-1.5 rounded-full transition-colors',
-                justSaved ? 'bg-emerald-400' : 'bg-zinc-700 group-hover:bg-zinc-500',
-              )}
+      <Divider />
+
+      <DropdownMenu>
+        <DropdownMenuTrigger
+          render={
+            <button
+              className="group flex items-center gap-1.5 px-3 text-xs text-zinc-400 transition-colors hover:bg-zinc-800/70 hover:text-zinc-100 data-[state=open]:bg-zinc-800/80 data-[state=open]:text-zinc-100"
+              aria-label="Open workflow"
             />
-          )}
-        </button>
-
-        <Divider />
-
-        {/* OPEN */}
-        <button
-          ref={openBtnRef}
-          onClick={() => setOpenMenu((v) => !v)}
-          className={cn(
-            'group flex items-center gap-1.5 px-3 text-xs transition-colors',
-            openMenu
-              ? 'bg-zinc-800/80 text-zinc-100'
-              : 'text-zinc-400 hover:bg-zinc-800/70 hover:text-zinc-100',
-          )}
-          aria-expanded={openMenu}
+          }
         >
           <FolderOpen className="h-3.5 w-3.5" />
           <span style={mono} className="text-[10px] uppercase tracking-[0.14em]">
             Open
           </span>
-          <ChevronDown
-            className={cn('h-3 w-3 transition-transform', openMenu && 'rotate-180')}
-          />
-        </button>
-      </div>
-
-      {/* PANEL (portaled to body to escape overflow:hidden ancestors) */}
-      {openMenu && panelPos && typeof document !== 'undefined' &&
-        createPortal(
-          <div
-            ref={panelRef}
-            className="fixed z-[1000] w-[360px] origin-top-right animate-[gm-in_140ms_ease-out] overflow-hidden rounded-lg border border-zinc-800 bg-zinc-950/98 shadow-2xl shadow-black/60 backdrop-blur-xl"
-            style={{
-              top: panelPos.top,
-              left: panelPos.left,
-              backgroundImage:
-                'radial-gradient(circle at 100% 0%, rgba(56,189,248,0.04), transparent 40%)',
-            }}
-          >
-          {/* HEADER */}
-          <div className="flex items-baseline justify-between border-b border-zinc-800/80 px-4 pb-3 pt-3.5">
+          <ChevronDown className="h-3 w-3 transition-transform group-data-[state=open]:rotate-180" />
+        </DropdownMenuTrigger>
+        <DropdownMenuContent
+          align="end"
+          sideOffset={8}
+          className="w-[360px] overflow-hidden p-0"
+        >
+          <div className="flex items-baseline justify-between border-b border-border px-4 py-3">
             <div className="flex items-baseline gap-2">
-              <span style={serif} className="text-[15px] italic text-zinc-100">
+              <span style={serif} className="text-[15px] italic font-normal">
                 Workflows
               </span>
-              <span
-                style={mono}
-                className="rounded-sm bg-zinc-800/80 px-1.5 py-0.5 text-[9px] uppercase tracking-[0.16em] text-zinc-400"
-              >
+              <Badge variant="secondary" style={mono} className="text-[9px] uppercase tracking-[0.16em]">
                 {myGraphs?.length ?? 0}
-              </span>
+              </Badge>
             </div>
-            <span
-              style={mono}
-              className="text-[9px] uppercase tracking-[0.18em] text-zinc-600"
-            >
+            <span style={mono} className="text-[9px] uppercase tracking-[0.18em] text-muted-foreground">
               ESC to close
             </span>
           </div>
 
-          {/* SEARCH */}
           {showSearch && (
-            <div className="flex items-center gap-2 border-b border-zinc-800/60 px-3 py-2">
-              <Search className="h-3 w-3 text-zinc-600" />
-              <input
-                autoFocus
-                value={query}
-                onChange={(e) => setQuery(e.target.value)}
-                placeholder="Filter workflows"
-                className="w-full bg-transparent text-[12px] text-zinc-200 placeholder:text-zinc-600 focus:outline-none"
-              />
+            <div className="border-b border-border px-3 py-2">
+              <div className="relative">
+                <Search className="pointer-events-none absolute left-2 top-1/2 h-3 w-3 -translate-y-1/2 text-muted-foreground" />
+                <Input
+                  autoFocus
+                  value={filter}
+                  onChange={(e) => setFilter(e.target.value)}
+                  placeholder="Filter workflows"
+                  className="h-8 pl-7 text-[12px]"
+                />
+              </div>
             </div>
           )}
 
-          {/* LIST */}
           <div className="max-h-[360px] overflow-y-auto py-1.5">
             {myGraphs === undefined ? (
-              <LoadingState />
+              <div
+                style={mono}
+                className="px-4 py-3 text-[10px] uppercase tracking-[0.16em] text-muted-foreground"
+              >
+                Loading…
+              </div>
             ) : !hasGraphs ? (
-              <EmptyState />
+              <div
+                className="m-3 flex flex-col items-center gap-2 rounded-md border border-dashed border-border px-4 py-6 text-center"
+                style={{
+                  backgroundImage:
+                    'repeating-linear-gradient(45deg, transparent 0 6px, rgba(255,255,255,0.012) 6px 7px)',
+                }}
+              >
+                <Workflow className="h-5 w-5 text-muted-foreground" />
+                <p style={serif} className="text-[13px] italic">
+                  No workflows yet
+                </p>
+                <p style={mono} className="text-[9.5px] uppercase tracking-[0.16em] text-muted-foreground">
+                  Build a graph · hit Save
+                </p>
+              </div>
             ) : filtered.length === 0 ? (
               <div className="px-4 py-6 text-center">
-                <p style={mono} className="text-[10px] uppercase tracking-[0.16em] text-zinc-500">
-                  No matches for &ldquo;{query}&rdquo;
+                <p style={mono} className="text-[10px] uppercase tracking-[0.16em] text-muted-foreground">
+                  No matches for &ldquo;{filter}&rdquo;
                 </p>
               </div>
             ) : (
@@ -287,41 +246,30 @@ export function GraphMenu() {
                 const isActive = g._id === currentGraphId
                 const nodeCount = Array.isArray(g.nodes) ? g.nodes.length : 0
                 return (
-                  <button
+                  <DropdownMenuItem
                     key={g._id}
-                    onClick={() => {
+                    onSelect={() => {
                       loadGraph(g.nodes as never, g.edges as never)
                       setCurrentGraph(g._id, g.name)
-                      setOpenMenu(false)
-                      setQuery('')
+                      setFilter('')
                     }}
-                    className={cn(
-                      'group relative flex w-full items-center gap-3 px-4 py-2.5 text-left transition-colors',
-                      isActive ? 'bg-zinc-900/70' : 'hover:bg-zinc-900/60',
-                    )}
+                    className="relative flex items-start gap-3 rounded-none px-4 py-2.5 focus:bg-accent/60"
                   >
                     <span
                       className={cn(
-                        'absolute bottom-1.5 left-0 top-1.5 w-[2px] rounded-r-sm transition-colors',
-                        isActive
-                          ? 'bg-emerald-400'
-                          : 'bg-transparent group-hover:bg-zinc-600',
+                        'absolute bottom-1.5 left-0 top-1.5 w-[2px] rounded-r-sm',
+                        isActive ? 'bg-emerald-400' : 'bg-transparent',
                       )}
                     />
                     <Workflow
                       className={cn(
-                        'h-4 w-4 shrink-0 transition-colors',
-                        isActive ? 'text-emerald-400' : 'text-zinc-500 group-hover:text-zinc-300',
+                        'mt-0.5 h-4 w-4 shrink-0',
+                        isActive ? 'text-emerald-400' : 'text-muted-foreground',
                       )}
                     />
                     <div className="min-w-0 flex-1">
                       <div className="flex items-baseline gap-2">
-                        <span
-                          className={cn(
-                            'truncate text-[13px] font-medium tracking-tight',
-                            isActive ? 'text-zinc-50' : 'text-zinc-100',
-                          )}
-                        >
+                        <span className="truncate text-[13px] font-medium tracking-tight">
                           {g.name}
                         </span>
                         {isActive && (
@@ -336,46 +284,37 @@ export function GraphMenu() {
                       <div className="mt-1 flex items-center gap-1.5">
                         <span
                           style={mono}
-                          className="text-[9.5px] uppercase tracking-[0.16em] text-zinc-500"
+                          className="text-[9.5px] uppercase tracking-[0.16em] text-muted-foreground"
                         >
                           {nodeCount} {nodeCount === 1 ? 'node' : 'nodes'}
                         </span>
-                        <span className="h-0.5 w-0.5 rounded-full bg-zinc-700" />
+                        <span className="h-0.5 w-0.5 rounded-full bg-muted-foreground/60" />
                         <span
                           style={mono}
-                          className="text-[9.5px] uppercase tracking-[0.16em] text-zinc-500"
+                          className="text-[9.5px] uppercase tracking-[0.16em] text-muted-foreground"
                         >
                           {relativeTime(g.updatedAt)}
                         </span>
                       </div>
                     </div>
-                  </button>
+                  </DropdownMenuItem>
                 )
               })
             )}
           </div>
 
-          {/* FOOTER */}
           {hasGraphs && (
-            <div className="border-t border-zinc-800/80 bg-zinc-950/60 px-4 py-2">
-              <span
-                style={mono}
-                className="text-[9px] uppercase tracking-[0.18em] text-zinc-600"
-              >
-                {filtered.length} of {myGraphs?.length} · synced via Convex
-              </span>
-            </div>
+            <>
+              <DropdownMenuSeparator className="my-0" />
+              <div className="bg-card/60 px-4 py-2">
+                <span style={mono} className="text-[9px] uppercase tracking-[0.18em] text-muted-foreground">
+                  {filtered.length} of {myGraphs?.length} · synced via Convex
+                </span>
+              </div>
+            </>
           )}
-          </div>,
-          document.body,
-        )}
-
-      <style>{`
-        @keyframes gm-in {
-          from { opacity: 0; transform: translateY(-4px) scale(0.98); }
-          to { opacity: 1; transform: translateY(0) scale(1); }
-        }
-      `}</style>
+        </DropdownMenuContent>
+      </DropdownMenu>
     </div>
   )
 }
@@ -395,53 +334,5 @@ function CheckIcon() {
         strokeLinejoin="round"
       />
     </svg>
-  )
-}
-
-function LoadingState() {
-  return (
-    <div className="space-y-1.5 px-3 py-2">
-      {[0, 1, 2].map((i) => (
-        <div
-          key={i}
-          className="flex items-center gap-3 px-1 py-2"
-          style={{ opacity: 1 - i * 0.25 }}
-        >
-          <div className="h-4 w-4 shrink-0 rounded-sm bg-zinc-800/80" />
-          <div className="flex-1 space-y-1.5">
-            <div className="h-2.5 w-3/5 rounded-sm bg-zinc-800/80" />
-            <div className="h-2 w-2/5 rounded-sm bg-zinc-800/50" />
-          </div>
-        </div>
-      ))}
-    </div>
-  )
-}
-
-function EmptyState() {
-  return (
-    <div className="px-4 py-5">
-      <div
-        className="flex flex-col items-center justify-center gap-2 rounded-md border border-dashed border-zinc-800 px-4 py-6 text-center"
-        style={{
-          backgroundImage:
-            'repeating-linear-gradient(45deg, transparent 0 6px, rgba(255,255,255,0.012) 6px 7px)',
-        }}
-      >
-        <Workflow className="h-5 w-5 text-zinc-700" />
-        <p
-          style={{ fontFamily: 'var(--font-fraunces)' }}
-          className="text-[13px] italic text-zinc-300"
-        >
-          No workflows yet
-        </p>
-        <p
-          style={{ fontFamily: 'var(--font-geist-mono)' }}
-          className="text-[9.5px] uppercase tracking-[0.16em] text-zinc-600"
-        >
-          Build a graph &middot; hit Save
-        </p>
-      </div>
-    </div>
   )
 }

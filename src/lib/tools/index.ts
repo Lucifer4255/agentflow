@@ -1,6 +1,7 @@
 import type { ToolConfig } from '@/types'
 import { executeCode } from './codeExecutor'
 import { httpRequest, type HttpRequestArgs } from './httpRequest'
+import { searchExa, searchFirecrawl } from './webSearch'
 
 export interface OpenAIToolDef {
   type: 'function'
@@ -11,12 +12,38 @@ export interface OpenAIToolDef {
   }
 }
 
+export const WEB_SEARCH_TOOL_NAME = 'web_search'
 export const HTTP_TOOL_NAME = 'http_request'
 export const CODE_TOOL_NAME = 'code_executor'
 
 export function buildBuiltinToolDefinitions(tools: ToolConfig[]): OpenAIToolDef[] {
   const defs: OpenAIToolDef[] = []
   const types = new Set(tools.map((t) => t.type))
+
+  if (types.has('web_search')) {
+    const cfg = tools.find((t) => t.type === 'web_search')
+    const provider = cfg?.webSearchProvider ?? 'exa'
+    defs.push({
+      type: 'function',
+      function: {
+        name: WEB_SEARCH_TOOL_NAME,
+        description:
+          `Search the web using ${provider === 'exa' ? 'Exa' : 'Firecrawl'}. ` +
+          `Returns titles, URLs, and content excerpts for the most relevant results.`,
+        parameters: {
+          type: 'object',
+          properties: {
+            query: { type: 'string', description: 'The search query.' },
+            numResults: {
+              type: 'number',
+              description: 'Number of results to return (default 5, max 10).',
+            },
+          },
+          required: ['query'],
+        },
+      },
+    })
+  }
 
   if (types.has('http_request')) {
     const httpTool = tools.find((t) => t.type === 'http_request')
@@ -84,6 +111,20 @@ export async function executeBuiltinTool(
   args: Record<string, unknown>,
   tools: ToolConfig[],
 ): Promise<string> {
+  if (name === WEB_SEARCH_TOOL_NAME) {
+    const cfg = tools.find((t) => t.type === 'web_search')
+    const provider = cfg?.webSearchProvider ?? 'exa'
+    const rawKey = cfg?.webSearchApiKey ?? ''
+    const apiKey = resolveWebSearchApiKey(rawKey, provider)
+    if (!apiKey) throw new Error(`Web search API key not configured for ${provider}`)
+    const query = String(args.query ?? '')
+    const numResults = typeof args.numResults === 'number' ? args.numResults : 5
+    if (provider === 'firecrawl') {
+      return searchFirecrawl({ query, numResults }, apiKey)
+    }
+    return searchExa({ query, numResults }, apiKey)
+  }
+
   if (name === HTTP_TOOL_NAME) {
     if (typeof args.url !== 'string') throw new Error('http_request requires a url')
     const httpTool = tools.find((t) => t.type === 'http_request')
@@ -102,4 +143,10 @@ export async function executeBuiltinTool(
     return executeCode(lang, String(args.code || ''))
   }
   throw new Error(`Unknown built-in tool: ${name}`)
+}
+
+function resolveWebSearchApiKey(raw: string, provider: string): string | undefined {
+  if (raw !== '__env__') return raw || undefined
+  if (provider === 'firecrawl') return process.env.FIRECRAWL_API_KEY
+  return process.env.EXA_API_KEY
 }
