@@ -3,9 +3,8 @@
 import { Play, Trash2, Sparkles, TextCursorInput, Bot, Square, PanelLeftOpen, Save, GitFork, Globe, GlobeLock, ExternalLink, X } from 'lucide-react'
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
-import { Show, SignInButton, SignUpButton, UserButton } from '@clerk/nextjs'
-import { useAuth } from '@clerk/nextjs'
-import { useMutation, useQuery } from 'convex/react'
+import { useConvexAuth, useMutation, useQuery } from 'convex/react'
+import { useAuthActions } from '@convex-dev/auth/react'
 import { api } from '../../../convex/_generated/api'
 import type { Id } from '../../../convex/_generated/dataModel'
 import { useGraphStore } from '@/store/graphStore'
@@ -14,6 +13,7 @@ import { marketResearchNodes, marketResearchEdges } from '@/components/demo/mark
 import { cn } from '@/lib/cn'
 import { BUDGET_MODEL_OPTIONS, MODEL_GROUPS } from '@/lib/models'
 import { NameModal } from '@/components/ui/modal'
+import { SignInModal } from '@/components/auth/SignInModal'
 
 const BUDGET_ROUTER_VALUE = '__budget__'
 
@@ -38,10 +38,10 @@ export function Toolbar() {
   const [justSaved, setJustSaved] = useState(false)
   const [nameModalOpen, setNameModalOpen] = useState(false)
   const [pendingName, setPendingName] = useState('Untitled workflow')
+  const [signInOpen, setSignInOpen] = useState(false)
 
   const router = useRouter()
-  const { isSignedIn } = useAuth()
-  const getOrCreateUser = useMutation(api.users.getOrCreate)
+  const { isAuthenticated } = useConvexAuth()
   const [deploying, setDeploying] = useState(false)
   const [isPublic, setIsPublic] = useState(false)
 
@@ -59,8 +59,8 @@ export function Toolbar() {
 
   const onRun = () => {
     if (running || nodes.length === 0) return
-    console.log('[toolbar] onRun | isSignedIn:', isSignedIn, '| currentGraphId:', currentGraphId)
-    const persistence: RunGraphPersistence | undefined = currentGraphId
+    console.log('[toolbar] onRun | isAuthenticated:', isAuthenticated, '| currentGraphId:', currentGraphId)
+    const persistence: RunGraphPersistence | undefined = isAuthenticated && currentGraphId
       ? {
           startRun: async () => {
             console.log('[toolbar] startRun called | graphId:', currentGraphId, 'model:', model)
@@ -91,10 +91,6 @@ export function Toolbar() {
     if (!persistence) console.warn('[toolbar] no persistence — graph not saved yet, runs will not be recorded')
     runGraph(useBudgetRouter ? BUDGET_ROUTER_VALUE : model, persistence)
   }
-
-  useEffect(() => {
-    if (isSignedIn) getOrCreateUser({}).catch(() => {})
-  }, [isSignedIn, getOrCreateUser])
 
   useEffect(() => {
     if (currentGraphData !== undefined) {
@@ -332,23 +328,37 @@ export function Toolbar() {
         <ConvexStatus />
 
         <div className="ml-1 flex items-center gap-2 border-l border-zinc-800 pl-3">
-          <Show when="signed-out">
-            <SignInButton mode="modal">
-              <button className="inline-flex h-9 items-center rounded-md px-3 text-xs font-medium text-zinc-300 hover:bg-zinc-900 hover:text-zinc-100">
-                Sign in
-              </button>
-            </SignInButton>
-            <SignUpButton mode="modal">
-              <button className="inline-flex h-9 items-center rounded-md border border-zinc-700 bg-zinc-900 px-3 text-xs font-medium text-zinc-200 hover:border-zinc-600 hover:bg-zinc-800">
-                Sign up
-              </button>
-            </SignUpButton>
-          </Show>
-          <Show when="signed-in">
-            <UserButton />
-          </Show>
+          {!isAuthenticated ? (
+            <button
+              onClick={() => setSignInOpen(true)}
+              className="inline-flex h-9 items-center rounded-md border border-zinc-700 bg-zinc-900 px-3 text-xs font-medium text-zinc-200 hover:border-zinc-600 hover:bg-zinc-800"
+            >
+              Sign in
+            </button>
+          ) : (
+            <AuthUser />
+          )}
         </div>
+
+        <SignInModal open={signInOpen} onOpenChange={setSignInOpen} />
       </div>
+    </div>
+  )
+}
+
+function AuthUser() {
+  const { signOut } = useAuthActions()
+  const me = useQuery(api.hello.whoami)
+  const label = me?.signedIn ? (me.email ?? me.name ?? 'Account') : ''
+  return (
+    <div className="flex items-center gap-2">
+      <span className="max-w-[140px] truncate font-mono text-[10px] text-zinc-400">{label}</span>
+      <button
+        onClick={() => signOut()}
+        className="inline-flex h-7 items-center rounded-md border border-zinc-800 px-2 text-[10px] text-zinc-500 transition hover:border-zinc-700 hover:text-zinc-300"
+      >
+        Sign out
+      </button>
     </div>
   )
 }

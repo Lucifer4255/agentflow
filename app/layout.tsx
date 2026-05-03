@@ -1,6 +1,5 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono, Fraunces, Newsreader } from "next/font/google";
-import { ClerkProvider } from "@clerk/nextjs";
 import { ConvexClientProvider } from "./ConvexClientProvider";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import "./globals.css";
@@ -45,11 +44,9 @@ export default function RootLayout({
       className={`dark ${geistSans.variable} ${geistMono.variable} ${fraunces.variable} ${newsreader.variable} h-full antialiased`}
     >
       <body className="min-h-full flex flex-col">
-        <ClerkProvider>
-          <ConvexClientProvider>
-            <TooltipProvider>{children}</TooltipProvider>
-          </ConvexClientProvider>
-        </ClerkProvider>
+        <ConvexClientProvider>
+          <TooltipProvider>{children}</TooltipProvider>
+        </ConvexClientProvider>
       </body>
     </html>
   );

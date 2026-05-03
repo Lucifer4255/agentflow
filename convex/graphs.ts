@@ -1,20 +1,16 @@
 import { mutation, query } from './_generated/server'
 import { v } from 'convex/values'
 import { requireUser } from './users'
+import { getAuthUserId } from '@convex-dev/auth/server'
 
 export const listMine = query({
   args: {},
   handler: async (ctx) => {
-    const identity = await ctx.auth.getUserIdentity()
-    if (!identity) return []
-    const user = await ctx.db
-      .query('users')
-      .withIndex('by_tokenIdentifier', (q) => q.eq('tokenIdentifier', identity.tokenIdentifier))
-      .unique()
-    if (!user) return []
+    const userId = await getAuthUserId(ctx)
+    if (!userId) return []
     return await ctx.db
       .query('graphs')
-      .withIndex('by_ownerId_and_updatedAt', (q) => q.eq('ownerId', user._id))
+      .withIndex('by_ownerId_and_updatedAt', (q) => q.eq('ownerId', userId))
       .order('desc')
       .take(50)
   },
@@ -23,9 +19,9 @@ export const listMine = query({
 export const get = query({
   args: { id: v.id('graphs') },
   handler: async (ctx, { id }) => {
-    const user = await requireUser(ctx)
+    const userId = await requireUser(ctx)
     const graph = await ctx.db.get(id)
-    if (!graph || graph.ownerId !== user._id) return null
+    if (!graph || graph.ownerId !== userId) return null
     return graph
   },
 })
@@ -37,9 +33,9 @@ export const create = mutation({
     edges: v.array(v.any()),
   },
   handler: async (ctx, { name, nodes, edges }) => {
-    const user = await requireUser(ctx)
+    const userId = await requireUser(ctx)
     return await ctx.db.insert('graphs', {
-      ownerId: user._id,
+      ownerId: userId,
       name,
       nodes,
       edges,
@@ -56,9 +52,9 @@ export const save = mutation({
     edges: v.array(v.any()),
   },
   handler: async (ctx, { id, name, nodes, edges }) => {
-    const user = await requireUser(ctx)
+    const userId = await requireUser(ctx)
     const existing = await ctx.db.get(id)
-    if (!existing || existing.ownerId !== user._id) throw new Error('Graph not found')
+    if (!existing || existing.ownerId !== userId) throw new Error('Graph not found')
     await ctx.db.patch(id, {
       ...(name !== undefined ? { name } : {}),
       nodes,
@@ -72,9 +68,9 @@ export const save = mutation({
 export const remove = mutation({
   args: { id: v.id('graphs') },
   handler: async (ctx, { id }) => {
-    const user = await requireUser(ctx)
+    const userId = await requireUser(ctx)
     const existing = await ctx.db.get(id)
-    if (!existing || existing.ownerId !== user._id) throw new Error('Graph not found')
+    if (!existing || existing.ownerId !== userId) throw new Error('Graph not found')
     await ctx.db.delete(id)
   },
 })
@@ -82,9 +78,9 @@ export const remove = mutation({
 export const rename = mutation({
   args: { id: v.id('graphs'), name: v.string() },
   handler: async (ctx, { id, name }) => {
-    const user = await requireUser(ctx)
+    const userId = await requireUser(ctx)
     const existing = await ctx.db.get(id)
-    if (!existing || existing.ownerId !== user._id) throw new Error('Graph not found')
+    if (!existing || existing.ownerId !== userId) throw new Error('Graph not found')
     await ctx.db.patch(id, { name, updatedAt: Date.now() })
   },
 })
@@ -101,9 +97,9 @@ export const getPublic = query({
 export const publish = mutation({
   args: { id: v.id('graphs'), defaultModel: v.optional(v.string()) },
   handler: async (ctx, { id, defaultModel }) => {
-    const user = await requireUser(ctx)
+    const userId = await requireUser(ctx)
     const existing = await ctx.db.get(id)
-    if (!existing || existing.ownerId !== user._id) throw new Error('Graph not found')
+    if (!existing || existing.ownerId !== userId) throw new Error('Graph not found')
     await ctx.db.patch(id, { isPublic: true, ...(defaultModel ? { defaultModel } : {}) })
   },
 })
@@ -111,9 +107,9 @@ export const publish = mutation({
 export const unpublish = mutation({
   args: { id: v.id('graphs') },
   handler: async (ctx, { id }) => {
-    const user = await requireUser(ctx)
+    const userId = await requireUser(ctx)
     const existing = await ctx.db.get(id)
-    if (!existing || existing.ownerId !== user._id) throw new Error('Graph not found')
+    if (!existing || existing.ownerId !== userId) throw new Error('Graph not found')
     await ctx.db.patch(id, { isPublic: false })
   },
 })

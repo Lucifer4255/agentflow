@@ -1,13 +1,18 @@
 'use client'
 
+import { useState } from 'react'
 import Link from 'next/link'
-import { SignInButton, SignUpButton, Show } from '@clerk/nextjs'
+import { useConvexAuth } from 'convex/react'
+import { SignInModal } from '@/components/auth/SignInModal'
 
 const PAPER = '#ede5d0'
 const INK = '#1a1814'
 const RUST = '#9a3412'
 
 export default function LandingPage() {
+  const { isAuthenticated } = useConvexAuth()
+  const [signInOpen, setSignInOpen] = useState(false)
+
   return (
     <div
       className="relative min-h-screen w-full overflow-x-hidden"
@@ -49,19 +54,16 @@ export default function LandingPage() {
             <a href="#why" className="hidden transition hover:text-[var(--rust)] md:inline">
               Specs
             </a>
-            <Show when="signed-out">
-              <SignInButton mode="modal">
-                <button className="transition hover:text-[var(--rust)]">Sign in</button>
-              </SignInButton>
-            </Show>
-            <Show when="signed-in">
+            {!isAuthenticated ? (
+              <button onClick={() => setSignInOpen(true)} className="transition hover:text-[var(--rust)]">Sign in</button>
+            ) : (
               <Link
                 href="/builder"
                 className="inline-flex items-center gap-2 border border-[var(--ink)] px-3 py-2 transition hover:bg-[var(--ink)] hover:text-[var(--paper)]"
               >
                 Open studio <span aria-hidden>→</span>
               </Link>
-            </Show>
+            )}
           </nav>
         </div>
       </header>
@@ -120,14 +122,12 @@ export default function LandingPage() {
               className="reveal mt-12 flex flex-wrap items-center gap-3"
               style={{ animationDelay: '0.65s' }}
             >
-              <SignUpButton mode="modal" forceRedirectUrl="/builder">
-                <button className="group relative inline-flex items-center gap-3 bg-[var(--ink)] px-8 py-4 text-sm font-medium text-[var(--paper)] transition hover:bg-[var(--rust)]">
-                  <span>Start drafting</span>
-                  <span className="font-mono text-xs opacity-60 transition group-hover:translate-x-0.5 group-hover:opacity-100">
-                    ↗
-                  </span>
-                </button>
-              </SignUpButton>
+              <button onClick={() => setSignInOpen(true)} className="group relative inline-flex items-center gap-3 bg-[var(--ink)] px-8 py-4 text-sm font-medium text-[var(--paper)] transition hover:bg-[var(--rust)]">
+                <span>Start drafting</span>
+                <span className="font-mono text-xs opacity-60 transition group-hover:translate-x-0.5 group-hover:opacity-100">
+                  ↗
+                </span>
+              </button>
               <Link
                 href="/builder"
                 className="group inline-flex items-center gap-3 border border-[var(--ink-30)] px-8 py-4 text-sm font-medium transition hover:border-[var(--ink)]"
@@ -277,14 +277,12 @@ export default function LandingPage() {
             </span>
           </h2>
           <div className="mt-12 flex flex-wrap items-center justify-center gap-3">
-            <SignUpButton mode="modal" forceRedirectUrl="/builder">
-              <button className="group inline-flex items-center gap-3 bg-[var(--ink)] px-10 py-5 text-sm font-medium text-[var(--paper)] transition hover:bg-[var(--rust)]">
-                <span>Start drafting</span>
-                <span className="font-mono text-xs opacity-60 transition group-hover:translate-x-0.5 group-hover:opacity-100">
-                  ↗
-                </span>
-              </button>
-            </SignUpButton>
+            <button onClick={() => setSignInOpen(true)} className="group inline-flex items-center gap-3 bg-[var(--ink)] px-10 py-5 text-sm font-medium text-[var(--paper)] transition hover:bg-[var(--rust)]">
+              <span>Start drafting</span>
+              <span className="font-mono text-xs opacity-60 transition group-hover:translate-x-0.5 group-hover:opacity-100">
+                ↗
+              </span>
+            </button>
             <Link
               href="/builder"
               className="group inline-flex items-center gap-3 border border-[var(--ink-30)] px-10 py-5 text-sm font-medium transition hover:border-[var(--ink)]"
@@ -302,6 +300,8 @@ export default function LandingPage() {
           <span>Sheet 1 of 1</span>
         </div>
       </footer>
+
+      <SignInModal open={signInOpen} onOpenChange={setSignInOpen} />
     </div>
   )
 }

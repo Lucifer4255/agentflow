@@ -16,7 +16,9 @@ import {
   ChevronRight,
   Trash2,
 } from 'lucide-react'
-import { Show, SignInButton, SignUpButton, UserButton, useUser } from '@clerk/nextjs'
+import { useConvexAuth } from 'convex/react'
+import { useAuthActions } from '@convex-dev/auth/react'
+import { SignInModal } from '@/components/auth/SignInModal'
 import { useQuery, useMutation } from 'convex/react'
 import { api } from '../../../convex/_generated/api'
 import type { Id } from '../../../convex/_generated/dataModel'
@@ -165,8 +167,8 @@ function NavRow({
 /* ─────────────────────────  Workflows  ───────────────────────── */
 
 function WorkflowsSection() {
-  const { isSignedIn } = useUser()
-  const myGraphs = useQuery(api.graphs.listMine, isSignedIn ? {} : 'skip')
+  const { isAuthenticated } = useConvexAuth()
+  const myGraphs = useQuery(api.graphs.listMine, isAuthenticated ? {} : 'skip')
   const currentGraphId = useGraphStore((s) => s.currentGraphId)
   const loadGraph = useGraphStore((s) => s.loadGraph)
   const setCurrentGraph = useGraphStore((s) => s.setCurrentGraph)
@@ -189,7 +191,7 @@ function WorkflowsSection() {
     setDeleteTarget(null)
   }
 
-  if (!isSignedIn) {
+  if (!isAuthenticated) {
     return <SignedOutPrompt label="Sign in to save and revisit your workflows" />
   }
 
@@ -367,12 +369,12 @@ function formatTokens(n: number): string {
 }
 
 function HistorySection() {
-  const { isSignedIn } = useUser()
-  const runs = useQuery(api.runs.listRecent, isSignedIn ? {} : 'skip')
+  const { isAuthenticated } = useConvexAuth()
+  const runs = useQuery(api.runs.listRecent, isAuthenticated ? {} : 'skip')
   const [selectedRunId, setSelectedRunId] = useState<string | null>(null)
   const toggle = (id: string) => setSelectedRunId((prev) => (prev === id ? null : id))
 
-  if (!isSignedIn) {
+  if (!isAuthenticated) {
     return <SignedOutPrompt label="Sign in to see your run history" />
   }
 
@@ -606,51 +608,47 @@ function SettingsSection() {
 }
 
 function AccountSection() {
+  const { isAuthenticated } = useConvexAuth()
+  const { signOut } = useAuthActions()
+  const [signInOpen, setSignInOpen] = useState(false)
+  const me = useQuery(api.hello.whoami)
+
   return (
     <SidebarGroup>
       <SidebarGroupLabel style={serif} className="text-[13px] italic normal-case text-sidebar-foreground">
         Account
       </SidebarGroupLabel>
       <SidebarGroupContent className="space-y-2 px-2">
-        <Show when="signed-out">
-          <SignInButton mode="modal">
-            <Button variant="outline" size="sm" className="w-full">
+        {!isAuthenticated ? (
+          <>
+            <Button variant="outline" size="sm" className="w-full" onClick={() => setSignInOpen(true)}>
               Sign in
             </Button>
-          </SignInButton>
-          <SignUpButton mode="modal">
-            <Button size="sm" className="w-full">
+            <Button size="sm" className="w-full" onClick={() => setSignInOpen(true)}>
               Create account
             </Button>
-          </SignUpButton>
-        </Show>
-        <Show when="signed-in">
-          <SignedInAccount />
-        </Show>
+            <SignInModal open={signInOpen} onOpenChange={setSignInOpen} />
+          </>
+        ) : (
+          <div className="flex items-center gap-3 rounded-md border border-sidebar-border bg-sidebar-accent/40 p-2.5">
+            <div className="min-w-0 flex-1">
+              <p className="truncate text-[12.5px] text-sidebar-foreground">
+                {me?.signedIn ? (me.name ?? me.email ?? 'Signed in') : 'Signed in'}
+              </p>
+              <p style={mono} className="mt-0.5 truncate text-[9px] uppercase tracking-[0.14em] text-muted-foreground">
+                {me?.signedIn ? (me.email ?? '') : ''}
+              </p>
+            </div>
+            <button
+              onClick={() => signOut()}
+              className="shrink-0 rounded border border-sidebar-border px-2 py-1 text-[10px] text-muted-foreground transition hover:text-sidebar-foreground"
+            >
+              Sign out
+            </button>
+          </div>
+        )}
       </SidebarGroupContent>
     </SidebarGroup>
-  )
-}
-
-function SignedInAccount() {
-  const { user } = useUser()
-  return (
-    <div className="flex items-center gap-3 rounded-md border border-sidebar-border bg-sidebar-accent/40 p-2.5">
-      <div className="shrink-0">
-        <UserButton />
-      </div>
-      <div className="min-w-0 flex-1">
-        <p className="truncate text-[12.5px] text-sidebar-foreground">
-          {user?.fullName || user?.firstName || 'Signed in'}
-        </p>
-        <p
-          style={mono}
-          className="mt-0.5 truncate text-[9px] uppercase tracking-[0.14em] text-muted-foreground"
-        >
-          {user?.primaryEmailAddress?.emailAddress ?? ''}
-        </p>
-      </div>
-    </div>
   )
 }
 
@@ -690,17 +688,17 @@ function EmptyBlock({
 }
 
 function SignedOutPrompt({ label }: { label: string }) {
+  const [signInOpen, setSignInOpen] = useState(false)
   return (
     <div className="px-2 pb-3 pt-2">
       <div className="rounded-md border border-sidebar-border bg-sidebar-accent/40 px-3 py-4 text-center">
         <p style={serif} className="text-[12.5px] italic text-sidebar-foreground">
           {label}
         </p>
-        <SignInButton mode="modal">
-          <Button variant="outline" size="sm" className="mt-3">
-            Sign in
-          </Button>
-        </SignInButton>
+        <Button variant="outline" size="sm" className="mt-3" onClick={() => setSignInOpen(true)}>
+          Sign in
+        </Button>
+        <SignInModal open={signInOpen} onOpenChange={setSignInOpen} />
       </div>
     </div>
   )

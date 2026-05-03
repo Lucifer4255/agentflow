@@ -1,6 +1,7 @@
 import { mutation, query } from './_generated/server'
 import { v } from 'convex/values'
 import { requireUser } from './users'
+import { getAuthUserId } from '@convex-dev/auth/server'
 
 const eventValidator = v.object({
   nodeId: v.string(),
@@ -23,12 +24,12 @@ export const start = mutation({
     model: v.string(),
   },
   handler: async (ctx, { graphId, model }) => {
-    const user = await requireUser(ctx)
+    const userId = await requireUser(ctx)
     const graph = await ctx.db.get(graphId)
-    if (!graph || graph.ownerId !== user._id) throw new Error('Graph not found')
+    if (!graph || graph.ownerId !== userId) throw new Error('Graph not found')
     return await ctx.db.insert('runs', {
       graphId,
-      ownerId: user._id,
+      ownerId: userId,
       status: 'running',
       model,
       startedAt: Date.now(),
@@ -46,9 +47,9 @@ export const appendEvents = mutation({
     events: v.array(eventValidator),
   },
   handler: async (ctx, { runId, events }) => {
-    const user = await requireUser(ctx)
+    const userId = await requireUser(ctx)
     const run = await ctx.db.get(runId)
-    if (!run || run.ownerId !== user._id) throw new Error('Run not found')
+    if (!run || run.ownerId !== userId) throw new Error('Run not found')
     for (const e of events) {
       await ctx.db.insert('runEvents', { runId, ...e })
     }
@@ -68,9 +69,9 @@ export const finish = mutation({
     error: v.union(v.string(), v.null()),
   },
   handler: async (ctx, { runId, status, totalInputTokens, totalOutputTokens, error }) => {
-    const user = await requireUser(ctx)
+    const userId = await requireUser(ctx)
     const run = await ctx.db.get(runId)
-    if (!run || run.ownerId !== user._id) throw new Error('Run not found')
+    if (!run || run.ownerId !== userId) throw new Error('Run not found')
     await ctx.db.patch(runId, {
       status,
       totalInputTokens,
@@ -84,15 +85,10 @@ export const finish = mutation({
 export const listForGraph = query({
   args: { graphId: v.id('graphs') },
   handler: async (ctx, { graphId }) => {
-    const identity = await ctx.auth.getUserIdentity()
-    if (!identity) return []
+    const userId = await getAuthUserId(ctx)
+    if (!userId) return []
     const graph = await ctx.db.get(graphId)
-    if (!graph) return []
-    const user = await ctx.db
-      .query('users')
-      .withIndex('by_tokenIdentifier', (q) => q.eq('tokenIdentifier', identity.tokenIdentifier))
-      .unique()
-    if (!user || graph.ownerId !== user._id) return []
+    if (!graph || graph.ownerId !== userId) return []
     return await ctx.db
       .query('runs')
       .withIndex('by_graphId', (q) => q.eq('graphId', graphId))
@@ -104,16 +100,11 @@ export const listForGraph = query({
 export const listRecent = query({
   args: {},
   handler: async (ctx) => {
-    const identity = await ctx.auth.getUserIdentity()
-    if (!identity) return []
-    const user = await ctx.db
-      .query('users')
-      .withIndex('by_tokenIdentifier', (q) => q.eq('tokenIdentifier', identity.tokenIdentifier))
-      .unique()
-    if (!user) return []
+    const userId = await getAuthUserId(ctx)
+    if (!userId) return []
     const recent = await ctx.db
       .query('runs')
-      .withIndex('by_ownerId_and_startedAt', (q) => q.eq('ownerId', user._id))
+      .withIndex('by_ownerId_and_startedAt', (q) => q.eq('ownerId', userId))
       .order('desc')
       .take(30)
     const graphIds = Array.from(new Set(recent.map((r) => r.graphId)))
@@ -129,15 +120,10 @@ export const listRecent = query({
 export const getEvents = query({
   args: { runId: v.id('runs') },
   handler: async (ctx, { runId }) => {
-    const identity = await ctx.auth.getUserIdentity()
-    if (!identity) return []
+    const userId = await getAuthUserId(ctx)
+    if (!userId) return []
     const run = await ctx.db.get(runId)
-    if (!run) return []
-    const user = await ctx.db
-      .query('users')
-      .withIndex('by_tokenIdentifier', (q) => q.eq('tokenIdentifier', identity.tokenIdentifier))
-      .unique()
-    if (!user || run.ownerId !== user._id) return []
+    if (!run || run.ownerId !== userId) return []
     return await ctx.db
       .query('runEvents')
       .withIndex('by_runId_and_at', (q) => q.eq('runId', runId))
