@@ -10,6 +10,7 @@
 
 import type * as graphs from "../graphs.js";
 import type * as hello from "../hello.js";
+import type * as memory from "../memory.js";
 import type * as runs from "../runs.js";
 import type * as users from "../users.js";
 
@@ -22,6 +23,7 @@ import type {
 declare const fullApi: ApiFromModules<{
   graphs: typeof graphs;
   hello: typeof hello;
+  memory: typeof memory;
   runs: typeof runs;
   users: typeof users;
 }>;

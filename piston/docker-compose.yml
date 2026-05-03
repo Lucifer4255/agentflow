@@ -1,13 +1,30 @@
 services:
   piston:
-    build: .
+    image: ghcr.io/engineer-man/piston
+    container_name: piston_api
+    restart: unless-stopped
+    privileged: true
     ports:
       - "2000:2000"
     volumes:
-      - piston_packages:/piston/packages
-    privileged: true
-    cgroup: host
-    restart: unless-stopped
+      - ./data/packages:/piston/packages
+      - /tmp:/tmp:exec
+    healthcheck:
+      test: ["CMD-SHELL", "node -e \"const h=require('http');h.get('http://localhost:2000/api/v2/runtimes',r=>process.exit(r.statusCode===200?0:1)).on('error',()=>process.exit(1))\""]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+      start_period: 10s
 
-volumes:
-  piston_packages:
+  piston-setup:
+    image: alpine:3
+    depends_on:
+      piston:
+        condition: service_healthy
+    volumes:
+      - ./setup.sh:/setup.sh
+    environment:
+      PISTON_URL: http://localhost:2000
+    command: sh -c "apk add --no-cache curl && sh /setup.sh"
+    restart: no
+    network_mode: "host"

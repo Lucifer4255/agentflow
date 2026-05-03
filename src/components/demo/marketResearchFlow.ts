@@ -1,45 +1,59 @@
 import type { Edge } from '@xyflow/react'
 import type { AgentNode } from '@/store/graphStore'
 
-// '__env__' is a sentinel — runAgent.ts swaps it server-side with
-// process.env.EXA_API_KEY so the real key never reaches the client.
 const EXA_KEY = '__env__'
 
 export const marketResearchNodes: AgentNode[] = [
+  // ── Input ──────────────────────────────────────────────────────────────────
   {
     id: 'input-node',
     type: 'inputNode',
-    position: { x: 50, y: 300 },
+    position: { x: 50, y: 350 },
     data: {
       label: 'Input',
       isInputNode: true,
       userInput: 'Research NVIDIA (NVDA)',
-      systemPrompt:
-        'You are a query parser. Extract the company name, stock ticker, and research intent from the user input.',
+      systemPrompt: 'Pass the user message through as-is.',
       tools: [],
-      outputSchema: [
-        { key: 'company', type: 'string', description: 'Full company name' },
-        { key: 'ticker', type: 'string', description: 'Stock ticker symbol' },
-        { key: 'researchGoal', type: 'string', description: 'What research is being requested' },
+      status: 'idle',
+    },
+  },
+
+  // ── Router ─────────────────────────────────────────────────────────────────
+  {
+    id: 'router',
+    type: 'routerNode',
+    position: { x: 300, y: 350 },
+    data: {
+      label: 'Intent Router',
+      systemPrompt: 'You are routing messages for a financial research assistant.',
+      tools: [],
+      routes: [
+        {
+          id: 'research',
+          label: 'Full Research',
+          description: 'User wants to research or analyse a specific company or stock (e.g. "Research NVIDIA", "Analyse Apple", "What do you think of TSLA?")',
+        },
+        {
+          id: 'general',
+          label: 'General Finance',
+          description: 'User is asking a general finance or investment question that does not require researching a specific company right now (e.g. "What is P/E ratio?", "Explain EPS", "How does short selling work?")',
+        },
       ],
       status: 'idle',
     },
   },
+
+  // ── Research branch ────────────────────────────────────────────────────────
   {
     id: 'news-agent',
     type: 'agentNode',
-    position: { x: 350, y: 100 },
+    position: { x: 600, y: 100 },
     data: {
       label: 'News Agent',
       systemPrompt:
         'You are a financial news researcher. Use the Exa search tool to find the latest news, developments, and announcements about the company.',
-      tools: [
-        {
-          type: 'web_search',
-          webSearchProvider: 'exa',
-          webSearchApiKey: EXA_KEY,
-        },
-      ],
+      tools: [{ type: 'web_search', webSearchProvider: 'exa', webSearchApiKey: EXA_KEY }],
       inputSchema: [
         { key: 'company', type: 'string', description: 'Company to research' },
         { key: 'ticker', type: 'string', description: 'Stock ticker' },
@@ -47,7 +61,7 @@ export const marketResearchNodes: AgentNode[] = [
       outputSchema: [
         { key: 'headlines', type: 'string[]', description: 'Top 5 recent news headlines' },
         { key: 'recentEvents', type: 'string', description: 'Summary of key recent events and announcements' },
-        { key: 'newsSentiment', type: 'string', description: 'Overall tone of news coverage: positive, negative, or mixed' },
+        { key: 'newsSentiment', type: 'string', description: 'Overall tone: positive, negative, or mixed' },
       ],
       status: 'idle',
     },
@@ -55,28 +69,21 @@ export const marketResearchNodes: AgentNode[] = [
   {
     id: 'financials-agent',
     type: 'agentNode',
-    position: { x: 350, y: 500 },
+    position: { x: 600, y: 550 },
     data: {
       label: 'Financials Agent',
       systemPrompt:
-        'You are a financial data analyst. Use the HTTP request tool to fetch data from Alpha Vantage. ' +
-        'Make TWO requests to the pre-configured endpoint using the params field:\n' +
-        '1. params: { function: "GLOBAL_QUOTE", symbol: "<ticker>" } — real-time price and change\n' +
-        '2. params: { function: "OVERVIEW", symbol: "<ticker>" } — fundamentals and company data\n' +
-        'Substitute <ticker> with the actual ticker symbol from the input. ' +
-        'Analyse the price, change percentage, market cap, P/E ratio, EPS, and 52-week range.',
-      tools: [{
-        type: 'http_request',
-        method: 'GET',
-        url: 'https://www.alphavantage.co/query',
-        apiKey: '?apikey=__env__:ALPHA_VANTAGE_API_KEY',
-      }],
+        'You are a financial data analyst. Use the web search tool to find current financial data for the company. ' +
+        'Search for: current stock price, market cap, P/E ratio, EPS, 52-week range, and recent price movement. ' +
+        'Use queries like "<ticker> stock price today", "<company> market cap P/E ratio EPS", "<ticker> 52-week high low". ' +
+        'Compile the most recent figures you find into a structured financial summary.',
+      tools: [{ type: 'web_search', webSearchProvider: 'exa', webSearchApiKey: EXA_KEY }],
       inputSchema: [
         { key: 'company', type: 'string', description: 'Company name' },
         { key: 'ticker', type: 'string', description: 'Stock ticker to fetch data for' },
       ],
       outputSchema: [
-        { key: 'currentPrice', type: 'string', description: 'Current or most recent stock price with currency' },
+        { key: 'currentPrice', type: 'string', description: 'Current stock price with currency' },
         { key: 'priceChange', type: 'string', description: 'Price change and percentage over the last trading day' },
         { key: 'marketCap', type: 'string', description: 'Market capitalisation' },
         { key: 'financialHighlights', type: 'string', description: 'Key metrics: P/E ratio, EPS, 52-week range, analyst target' },
@@ -87,11 +94,11 @@ export const marketResearchNodes: AgentNode[] = [
   {
     id: 'sentiment-agent',
     type: 'agentNode',
-    position: { x: 700, y: 300 },
+    position: { x: 950, y: 300 },
     data: {
       label: 'Sentiment Agent',
       systemPrompt:
-        'You are a market sentiment analyst. Based on news coverage and financial data from previous agents, determine the overall market sentiment with clear reasoning.',
+        'You are a market sentiment analyst. Based on news coverage and financial data, determine the overall market sentiment with clear reasoning.',
       tools: [],
       inputSchema: [
         { key: 'headlines', type: 'string[]', description: 'Recent news headlines' },
@@ -102,8 +109,8 @@ export const marketResearchNodes: AgentNode[] = [
       ],
       outputSchema: [
         { key: 'verdict', type: 'string', description: 'Bullish, Neutral, or Bearish' },
-        { key: 'confidence', type: 'string', description: 'Low, Medium, or High confidence in the verdict' },
-        { key: 'reasoning', type: 'string', description: 'Explanation for the sentiment verdict' },
+        { key: 'confidence', type: 'string', description: 'Low, Medium, or High' },
+        { key: 'reasoning', type: 'string', description: 'Explanation for the verdict' },
         { key: 'keySignals', type: 'string[]', description: 'Top 3 signals driving the sentiment' },
       ],
       status: 'idle',
@@ -112,11 +119,11 @@ export const marketResearchNodes: AgentNode[] = [
   {
     id: 'risk-agent',
     type: 'agentNode',
-    position: { x: 1000, y: 300 },
+    position: { x: 1200, y: 300 },
     data: {
       label: 'Risk Agent',
       systemPrompt:
-        'You are a risk analyst. Use the code executor to calculate a risk score (0–100) in Python based on sentiment verdict, confidence, and price movement. Print the score and a short breakdown of contributing factors.',
+        'You are a risk analyst. Use the code executor to calculate a risk score (0–100) in Python based on sentiment verdict, confidence, and price movement. Print the score and a short breakdown.',
       tools: [{ type: 'code_executor', language: 'python' }],
       inputSchema: [
         { key: 'verdict', type: 'string', description: 'Sentiment verdict' },
@@ -125,9 +132,9 @@ export const marketResearchNodes: AgentNode[] = [
         { key: 'keySignals', type: 'string[]', description: 'Key sentiment signals' },
       ],
       outputSchema: [
-        { key: 'riskScore', type: 'number', description: 'Risk score from 0 (low risk) to 100 (high risk)' },
+        { key: 'riskScore', type: 'number', description: 'Risk score 0–100' },
         { key: 'riskLevel', type: 'string', description: 'Low, Medium, or High' },
-        { key: 'riskFactors', type: 'string[]', description: 'Top risk factors identified' },
+        { key: 'riskFactors', type: 'string[]', description: 'Top risk factors' },
         { key: 'mitigatingFactors', type: 'string[]', description: 'Factors that reduce risk' },
       ],
       status: 'idle',
@@ -136,9 +143,10 @@ export const marketResearchNodes: AgentNode[] = [
   {
     id: 'synthesis-agent',
     type: 'agentNode',
-    position: { x: 1300, y: 300 },
+    position: { x: 1500, y: 300 },
     data: {
       label: 'Research Brief',
+      isOutputNode: true,
       systemPrompt:
         'You are a senior investment analyst. Synthesise all research into a structured investment brief. End with a disclaimer that this is for research purposes only, not financial advice.',
       tools: [],
@@ -160,13 +168,43 @@ export const marketResearchNodes: AgentNode[] = [
       status: 'idle',
     },
   },
+
+  // ── General finance branch ─────────────────────────────────────────────────
+  {
+    id: 'general-agent',
+    type: 'agentNode',
+    position: { x: 600, y: 820 },
+    data: {
+      label: 'Finance Expert',
+      systemPrompt:
+        'You are a knowledgeable financial expert and educator. Answer the user\'s finance question clearly and concisely. ' +
+        'Use real-world examples where helpful. If the question requires current market data you don\'t have, say so and explain the concept anyway. ' +
+        'Do not give personalised financial advice.',
+      tools: [{ type: 'web_search', webSearchProvider: 'exa', webSearchApiKey: EXA_KEY }],
+      outputSchema: [
+        { key: 'answer', type: 'string', description: 'Clear answer to the finance question' },
+        { key: 'keyPoints', type: 'string[]', description: 'Key takeaways or important nuances' },
+        { key: 'example', type: 'string', description: 'A real-world example to illustrate the concept (if applicable)' },
+      ],
+      status: 'idle',
+    },
+  },
 ]
 
 export const marketResearchEdges: Edge[] = [
-  { id: 'e1', source: 'input-node', target: 'news-agent' },
-  { id: 'e2', source: 'input-node', target: 'financials-agent' },
-  { id: 'e3', source: 'news-agent', target: 'sentiment-agent' },
-  { id: 'e4', source: 'financials-agent', target: 'sentiment-agent' },
-  { id: 'e5', source: 'sentiment-agent', target: 'risk-agent' },
-  { id: 'e6', source: 'risk-agent', target: 'synthesis-agent' },
+  // Input → Router
+  { id: 'e-input-router', source: 'input-node', target: 'router' },
+
+  // Router → Research branch (via "research" handle)
+  { id: 'e-router-news',       source: 'router', sourceHandle: 'research', target: 'news-agent' },
+  { id: 'e-router-financials', source: 'router', sourceHandle: 'research', target: 'financials-agent' },
+
+  // Research pipeline
+  { id: 'e-news-sentiment',      source: 'news-agent',       target: 'sentiment-agent' },
+  { id: 'e-financials-sentiment',source: 'financials-agent', target: 'sentiment-agent' },
+  { id: 'e-sentiment-risk',      source: 'sentiment-agent',  target: 'risk-agent' },
+  { id: 'e-risk-synthesis',      source: 'risk-agent',       target: 'synthesis-agent' },
+
+  // Router → General finance branch (via "general" handle)
+  { id: 'e-router-general', source: 'router', sourceHandle: 'general', target: 'general-agent' },
 ]

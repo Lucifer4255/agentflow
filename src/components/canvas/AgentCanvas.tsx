@@ -12,6 +12,7 @@ import { useMemo } from 'react'
 import { useGraphStore } from '@/store/graphStore'
 import { AgentNode } from './AgentNode'
 import { InputNode } from './InputNode'
+import { RouterNode } from './RouterNode'
 
 export function AgentCanvas() {
   const nodes = useGraphStore((s) => s.nodes)
@@ -22,7 +23,7 @@ export function AgentCanvas() {
   const selectNode = useGraphStore((s) => s.selectNode)
   const running = useGraphStore((s) => s.running)
 
-  const nodeTypes = useMemo(() => ({ agentNode: AgentNode, inputNode: InputNode }), [])
+  const nodeTypes = useMemo(() => ({ agentNode: AgentNode, inputNode: InputNode, routerNode: RouterNode }), [])
 
   const onNodeClick: NodeMouseHandler = (_, node) => selectNode(node.id)
   const onPaneClick = () => selectNode(null)

@@ -14,13 +14,15 @@ import {
   Square,
   ChevronDown,
   ChevronRight,
+  Trash2,
 } from 'lucide-react'
 import { Show, SignInButton, SignUpButton, UserButton, useUser } from '@clerk/nextjs'
-import { useQuery } from 'convex/react'
+import { useQuery, useMutation } from 'convex/react'
 import { api } from '../../../convex/_generated/api'
 import type { Id } from '../../../convex/_generated/dataModel'
 import { useGraphStore } from '@/store/graphStore'
 import { cn } from '@/lib/cn'
+import { ConfirmModal } from '@/components/ui/modal'
 import { estimateCost, formatCost } from '@/lib/modelCost'
 import {
   Sidebar as ShadSidebar,
@@ -31,6 +33,7 @@ import {
   SidebarGroupLabel,
   SidebarHeader,
   SidebarMenu,
+  SidebarMenuAction,
   SidebarMenuButton,
   SidebarMenuItem,
   SidebarMenuSkeleton,
@@ -170,6 +173,21 @@ function WorkflowsSection() {
   const clear = useGraphStore((s) => s.clear)
   const nodes = useGraphStore((s) => s.nodes)
   const [filter, setFilter] = useState('')
+  const removeGraph = useMutation(api.graphs.remove)
+  const [deleteTarget, setDeleteTarget] = useState<{ id: string; name: string } | null>(null)
+  const [discardOpen, setDiscardOpen] = useState(false)
+
+  const onDelete = (e: React.MouseEvent, id: string, name: string) => {
+    e.stopPropagation()
+    setDeleteTarget({ id, name })
+  }
+
+  const confirmDelete = async () => {
+    if (!deleteTarget) return
+    await removeGraph({ id: deleteTarget.id as Id<'graphs'> })
+    if (currentGraphId === deleteTarget.id) clear()
+    setDeleteTarget(null)
+  }
 
   if (!isSignedIn) {
     return <SignedOutPrompt label="Sign in to save and revisit your workflows" />
@@ -180,11 +198,12 @@ function WorkflowsSection() {
   )
 
   const onNew = () => {
-    if (nodes.length > 0 && !window.confirm('Discard current workflow?')) return
+    if (nodes.length > 0) { setDiscardOpen(true); return }
     clear()
   }
 
   return (
+    <>
     <SidebarGroup>
       <SidebarGroupLabel className="flex items-center justify-between">
         <span style={serif} className="text-[13px] italic normal-case text-sidebar-foreground">
@@ -198,6 +217,7 @@ function WorkflowsSection() {
       <SidebarGroupContent className="space-y-2 px-2">
         <Button
           variant="outline"
+
           size="sm"
           onClick={onNew}
           className="w-full justify-start border-dashed"
@@ -281,6 +301,13 @@ function WorkflowsSection() {
                       </span>
                     </div>
                   </SidebarMenuButton>
+                  <SidebarMenuAction
+                    onClick={(e) => onDelete(e, g._id, g.name)}
+                    title="Delete workflow"
+                    className="text-muted-foreground hover:bg-destructive/20 hover:text-destructive"
+                  >
+                    <Trash2 className="h-3.5 w-3.5" />
+                  </SidebarMenuAction>
                 </SidebarMenuItem>
               )
             })
@@ -288,6 +315,27 @@ function WorkflowsSection() {
         </SidebarMenu>
       </SidebarGroupContent>
     </SidebarGroup>
+
+    <ConfirmModal
+      open={!!deleteTarget}
+      onOpenChange={(open) => { if (!open) setDeleteTarget(null) }}
+      title={`Delete "${deleteTarget?.name}"?`}
+      description="This will permanently remove the workflow and all its run history."
+      confirmLabel="Delete"
+      destructive
+      onConfirm={confirmDelete}
+    />
+
+    <ConfirmModal
+      open={discardOpen}
+      onOpenChange={setDiscardOpen}
+      title="Discard current workflow?"
+      description="Unsaved changes will be lost."
+      confirmLabel="Discard"
+      destructive
+      onConfirm={clear}
+    />
+    </>
   )
 }
 

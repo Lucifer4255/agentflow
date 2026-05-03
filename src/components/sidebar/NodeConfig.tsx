@@ -1,8 +1,8 @@
 'use client'
 
-import { Trash2, Plus, X, Braces } from 'lucide-react'
+import { Trash2, Plus, X, Braces, GitFork } from 'lucide-react'
 import { useGraphStore } from '@/store/graphStore'
-import type { ToolConfig, ToolType, WebSearchProvider, OutputSchemaField, OutputFieldType } from '@/types'
+import type { ToolConfig, ToolType, WebSearchProvider, OutputSchemaField, OutputFieldType, RouteDefinition } from '@/types'
 import { MODEL_OPTIONS } from '@/lib/models'
 import { cn } from '@/lib/cn'
 
@@ -31,6 +31,10 @@ export function NodeConfig() {
         </p>
       </aside>
     )
+  }
+
+  if (node.type === 'routerNode') {
+    return <RouterConfig node={node} updateNodeData={updateNodeData} removeNode={removeNode} />
   }
 
   const data = node.data
@@ -98,6 +102,31 @@ export function NodeConfig() {
             className={inputCls}
           />
         </Field>
+
+        {!data.isInputNode && (
+          <div className="mb-4 flex items-center justify-between rounded-lg border border-zinc-800 bg-zinc-900/50 px-3 py-2.5">
+            <div>
+              <p className="text-xs font-medium text-zinc-200">Output Node</p>
+              <p className="text-[10px] text-zinc-500">This node's response is the chat answer</p>
+            </div>
+            <button
+              role="switch"
+              aria-checked={!!data.isOutputNode}
+              onClick={() => updateNodeData(node.id, { isOutputNode: !data.isOutputNode })}
+              className={cn(
+                'relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors',
+                data.isOutputNode ? 'bg-violet-600' : 'bg-zinc-700',
+              )}
+            >
+              <span
+                className={cn(
+                  'pointer-events-none block h-4 w-4 rounded-full bg-white shadow-sm transition-transform',
+                  data.isOutputNode ? 'translate-x-4' : 'translate-x-0',
+                )}
+              />
+            </button>
+          </div>
+        )}
 
         <Field label="Model">
           <select
@@ -406,6 +435,135 @@ function SchemaFieldRow({
         className="mt-1.5 w-full rounded border border-zinc-700 bg-zinc-900 px-2 py-1 text-[10px] text-zinc-400 outline-none focus:border-sky-500"
       />
     </div>
+  )
+}
+
+function RouterConfig({
+  node,
+  updateNodeData,
+  removeNode,
+}: {
+  node: ReturnType<typeof useGraphStore.getState>['nodes'][number]
+  updateNodeData: (id: string, patch: Partial<import('@/types').AgentNodeData>) => void
+  removeNode: (id: string) => void
+}) {
+  const data = node.data
+  const routes = (data.routes ?? []) as RouteDefinition[]
+
+  const uid = () => `r_${Math.random().toString(36).slice(2, 7)}`
+
+  const setRoute = (i: number, patch: Partial<RouteDefinition>) =>
+    updateNodeData(node.id, { routes: routes.map((r, idx) => (idx === i ? { ...r, ...patch } : r)) })
+
+  const addRoute = () =>
+    updateNodeData(node.id, { routes: [...routes, { id: uid(), label: 'New Route', description: '' }] })
+
+  const removeRoute = (i: number) =>
+    updateNodeData(node.id, { routes: routes.filter((_, idx) => idx !== i) })
+
+  return (
+    <aside className="flex w-[340px] flex-col overflow-hidden border-l border-zinc-800 bg-zinc-950/80">
+      <div className="flex items-center justify-between border-b border-zinc-800 px-4 py-3">
+        <div className="flex items-center gap-2">
+          <GitFork className="h-4 w-4 text-violet-400" />
+          <h2 className="text-xs font-semibold uppercase tracking-wider text-zinc-400">
+            Configure Router
+          </h2>
+        </div>
+        <button
+          onClick={() => removeNode(node.id)}
+          className="rounded p-1 text-zinc-500 transition hover:bg-red-500/10 hover:text-red-400"
+        >
+          <Trash2 className="h-4 w-4" />
+        </button>
+      </div>
+
+      <div className="flex-1 overflow-y-auto p-4 space-y-4">
+        <Field label="Label">
+          <input
+            value={data.label}
+            onChange={(e) => updateNodeData(node.id, { label: e.target.value })}
+            className={inputCls}
+          />
+        </Field>
+
+        <Field label="Model">
+          <select
+            value={data.model ?? ''}
+            onChange={(e) => updateNodeData(node.id, { model: e.target.value || undefined })}
+            className={inputCls}
+          >
+            <option value="">Inherit from global</option>
+            {MODEL_OPTIONS.map((m) => (
+              <option key={m} value={m}>{m}</option>
+            ))}
+          </select>
+        </Field>
+
+        <Field label="Additional Instructions">
+          <textarea
+            value={data.systemPrompt}
+            onChange={(e) => updateNodeData(node.id, { systemPrompt: e.target.value })}
+            rows={3}
+            placeholder="Optional extra context for the router (e.g. 'The user is a financial analyst')"
+            className={cn(inputCls, 'resize-y text-xs leading-relaxed')}
+          />
+        </Field>
+
+        <div>
+          <div className="mb-2 flex items-center justify-between">
+            <label className="text-[10px] font-semibold uppercase tracking-wider text-zinc-500">
+              Routes
+            </label>
+            <button
+              onClick={addRoute}
+              className="inline-flex items-center gap-1 rounded border border-zinc-700 bg-zinc-900 px-2 py-1 text-[10px] text-zinc-300 hover:border-zinc-600 hover:bg-zinc-800"
+            >
+              <Plus className="h-3 w-3" />
+              Add route
+            </button>
+          </div>
+
+          <p className="mb-2 text-[10px] text-zinc-600">
+            Each route gets its own output handle. Drag edges from the matching handle to the nodes that should run on that branch.
+          </p>
+
+          {routes.length === 0 && (
+            <p className="rounded border border-dashed border-zinc-800 p-3 text-center text-xs text-zinc-500">
+              No routes yet. Add at least two.
+            </p>
+          )}
+
+          <div className="space-y-3">
+            {routes.map((route, i) => (
+              <div key={route.id} className="rounded-lg border border-violet-900/50 bg-violet-950/30 p-3">
+                <div className="flex items-center gap-1.5 mb-2">
+                  <span className="h-1.5 w-1.5 rounded-full bg-violet-400 shrink-0" />
+                  <input
+                    value={route.label}
+                    onChange={(e) => setRoute(i, { label: e.target.value })}
+                    placeholder="Route name"
+                    className="min-w-0 flex-1 rounded border border-zinc-700 bg-zinc-900 px-2 py-1 text-[11px] text-zinc-100 outline-none focus:border-violet-500"
+                  />
+                  <button
+                    onClick={() => removeRoute(i)}
+                    className="shrink-0 rounded p-1 text-zinc-500 hover:text-red-400"
+                  >
+                    <X className="h-3 w-3" />
+                  </button>
+                </div>
+                <input
+                  value={route.description}
+                  onChange={(e) => setRoute(i, { description: e.target.value })}
+                  placeholder="When should this route be selected? (guides the LLM)"
+                  className="w-full rounded border border-zinc-700 bg-zinc-900 px-2 py-1 text-[10px] text-zinc-400 outline-none focus:border-violet-500"
+                />
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    </aside>
   )
 }
 

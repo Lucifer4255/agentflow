@@ -14,6 +14,8 @@ export default defineSchema({
     nodes: v.array(v.any()),
     edges: v.array(v.any()),
     updatedAt: v.number(),
+    isPublic: v.optional(v.boolean()),
+    defaultModel: v.optional(v.string()),
   })
     .index('by_ownerId', ['ownerId'])
     .index('by_ownerId_and_updatedAt', ['ownerId', 'updatedAt']),
@@ -52,4 +54,24 @@ export default defineSchema({
     outputTokens: v.union(v.number(), v.null()),
     at: v.number(),
   }).index('by_runId_and_at', ['runId', 'at']),
+
+  conversations: defineTable({
+    graphId: v.string(),
+    sessionId: v.string(),
+    createdAt: v.number(),
+  }).index('by_session', ['graphId', 'sessionId']),
+
+  chatMessages: defineTable({
+    conversationId: v.id('conversations'),
+    role: v.union(v.literal('user'), v.literal('assistant')),
+    content: v.string(),
+    embedding: v.array(v.number()),
+    createdAt: v.number(),
+  })
+    .index('by_conversation_and_time', ['conversationId', 'createdAt'])
+    .vectorIndex('by_embedding', {
+      vectorField: 'embedding',
+      dimensions: 3072,
+      filterFields: ['conversationId'],
+    }),
 })

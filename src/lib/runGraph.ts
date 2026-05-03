@@ -146,6 +146,16 @@ export async function runGraph(model?: string, persistence?: RunGraphPersistence
                 at,
               })
               break
+            case 'router_decision':
+              recordEvent({
+                nodeId: event.nodeId,
+                kind: 'node_end',
+                text: `Route: ${event.route} — ${event.reasoning}`,
+                inputTokens: null,
+                outputTokens: null,
+                at,
+              })
+              break
             case 'node_error':
               finalStatus = 'error'
               finalError = event.error
@@ -203,6 +213,10 @@ function handleEvent(event: ExecutionEvent) {
       break
     case 'node_delta':
       store.appendOutput(event.nodeId, event.text)
+      break
+    case 'router_decision':
+      store.setOutput(event.nodeId, `→ ${event.route}`)
+      store.updateNodeData(event.nodeId, { selectedRoute: event.route })
       break
     case 'node_done':
       store.setOutput(event.nodeId, event.output)

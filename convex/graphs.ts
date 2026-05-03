@@ -88,3 +88,32 @@ export const rename = mutation({
     await ctx.db.patch(id, { name, updatedAt: Date.now() })
   },
 })
+
+export const getPublic = query({
+  args: { id: v.id('graphs') },
+  handler: async (ctx, { id }) => {
+    const graph = await ctx.db.get(id)
+    if (!graph || !graph.isPublic) return null
+    return graph
+  },
+})
+
+export const publish = mutation({
+  args: { id: v.id('graphs'), defaultModel: v.optional(v.string()) },
+  handler: async (ctx, { id, defaultModel }) => {
+    const user = await requireUser(ctx)
+    const existing = await ctx.db.get(id)
+    if (!existing || existing.ownerId !== user._id) throw new Error('Graph not found')
+    await ctx.db.patch(id, { isPublic: true, ...(defaultModel ? { defaultModel } : {}) })
+  },
+})
+
+export const unpublish = mutation({
+  args: { id: v.id('graphs') },
+  handler: async (ctx, { id }) => {
+    const user = await requireUser(ctx)
+    const existing = await ctx.db.get(id)
+    if (!existing || existing.ownerId !== user._id) throw new Error('Graph not found')
+    await ctx.db.patch(id, { isPublic: false })
+  },
+})

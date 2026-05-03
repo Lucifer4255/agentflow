@@ -1,7 +1,7 @@
-import { generateText, Output, stepCountIs, dynamicTool, jsonSchema } from 'ai'
-import { z } from 'zod'
+import { generateText, stepCountIs, dynamicTool, jsonSchema } from 'ai'
 import { createOpenRouter } from '@openrouter/ai-sdk-provider'
 import type { AgentNodeData, OutputSchemaField } from '@/types'
+import { pickBudgetModel } from '@/lib/models'
 import {
   buildBuiltinToolDefinitions,
   executeBuiltinTool,
@@ -12,8 +12,6 @@ import {
   connectMCP,
   type MCPConnection,
 } from '@/lib/mcp/mcpClient'
-
-const MAX_STEPS = 10
 
 export interface RunAgentOptions {
   onDelta?: (text: string) => void
@@ -40,7 +38,19 @@ export async function runAgent(
   const mcpToolToConnection = new Map<string, MCPConnection>()
 
   const label = agentData.label ?? 'unknown'
-  const model = agentData.model || modelOverride || 'anthropic/claude-sonnet-4-5'
+
+  // Input nodes are pure pass-through — no LLM call needed
+  if (agentData.isInputNode) {
+    const text = agentData.userInput ?? ''
+    if (text) opts?.onDelta?.(text)
+    return { text, inputTokens: 0, outputTokens: 0 }
+  }
+
+  const resolvedModel = agentData.model || modelOverride || 'anthropic/claude-sonnet-4.5'
+  const hasTools = agentData.tools.length > 0
+  const model = resolvedModel === '__budget__'
+    ? pickBudgetModel(resolveBudgetLimit(agentData), hasTools)
+    : resolvedModel
 
   try {
     const mcpConfigs = agentData.tools.filter((t) => t.type === 'mcp' && t.mcpServerUrl)
@@ -84,41 +94,56 @@ export async function runAgent(
       })
     }
 
+    const systemPrompt = buildSystemPrompt(agentData)
     const userMessage = buildUserMessage(agentData, upstreamContext)
 
-    const outputSchema = buildOutputSchema(agentData.outputSchema)
-    const usingDefault = !agentData.outputSchema?.length
-
     console.log(
-      `[agent] start     | ${label} | ${model} | tools=${allDefs.length} | schema=${usingDefault ? 'default' : 'custom'}` +
+      `[agent] start     | ${label} | ${model} | tools=${allDefs.length}` +
       (agentData.systemPrompt ? '' : ' | WARN: no system prompt'),
     )
 
+    let stepCount = 0
+    const toolsArg = Object.keys(tools).length > 0 ? tools : undefined
+
     const result = await generateText({
       model: openrouter.chat(model),
-      system: agentData.systemPrompt,
+      system: systemPrompt,
       prompt: userMessage,
-      tools: Object.keys(tools).length > 0 ? tools : undefined,
-      stopWhen: stepCountIs(MAX_STEPS),
+      tools: toolsArg,
+      stopWhen: stepCountIs(10),
       abortSignal: opts?.signal,
-      output: Output.object({ schema: outputSchema }),
+      onStepFinish: (step) => {
+        stepCount++
+        // Emit tool calls as they happen
+        for (const call of step.toolCalls ?? []) {
+          const input = (call as { input?: unknown; args?: unknown }).input ?? (call as { args?: unknown }).args
+          const argsPreview = formatArgsPreview(input as Record<string, unknown>)
+          opts?.onDelta?.(`\`${call.toolName}\`${argsPreview}\n`)
+        }
+        // Emit tool results (trimmed)
+        for (const res of step.toolResults ?? []) {
+          const raw = (res as { output?: unknown; result?: unknown }).output ?? (res as { result?: unknown }).result
+          const str = String(raw)
+          const preview = str.slice(0, 400).replace(/\n+/g, ' ')
+          opts?.onDelta?.(`> ${preview}${str.length > 400 ? '…' : ''}\n\n`)
+        }
+      },
     })
 
-    const { output, usage, steps, finishReason } = result
+    const { text, usage } = result
 
     console.log(
-      `[agent] done      | ${label} | finish=${finishReason}` +
+      `[agent] done      | ${label}` +
       ` | in=${usage.inputTokens ?? 0} out=${usage.outputTokens ?? 0}` +
-      ` | steps=${steps.length}`,
+      ` | steps=${stepCount}`,
     )
 
-    const text = formatOutput(output as Record<string, unknown>)
-
     if (!text) {
-      console.warn(`[agent] EMPTY     | ${label} | model=${model} | output=${JSON.stringify(output)}`)
+      console.warn(`[agent] EMPTY     | ${label} | model=${model}`)
     }
 
-    // Emit as a single delta (no streaming with structured output)
+    // Emit separator before final response if tool steps were shown
+    if (stepCount > 1 && text) opts?.onDelta?.('\n---\n')
     if (text) opts?.onDelta?.(text)
 
     return {
@@ -129,6 +154,56 @@ export async function runAgent(
   } finally {
     await closeMCP(mcpConnections)
   }
+}
+
+// ─── Budget routing ───────────────────────────────────────────────────────────
+
+// Returns max $/1M input tokens budget based on node complexity.
+// Simple nodes (no tools, small schema) → ultra-cheap.
+// Nodes with tools or large schemas → allow slightly more capable models.
+function resolveBudgetLimit(agentData: AgentNodeData): number {
+  const hasTools = agentData.tools.length > 0
+  const schemaSize = (agentData.outputSchema?.length ?? 0) + (agentData.inputSchema?.length ?? 0)
+  const isComplex = hasTools || schemaSize > 4
+
+  if (isComplex) return 0.15  // up to MiniMax M2.5 / Llama 4 Maverick tier
+  return 0.10                 // up to Gemini Flash / Llama 3.3 70B tier
+}
+
+// ─── Helpers ─────────────────────────────────────────────────────────────────
+
+function formatArgsPreview(args: Record<string, unknown>): string {
+  const entries = Object.entries(args)
+  if (entries.length === 0) return ''
+  const parts = entries.map(([k, v]) => {
+    const val = typeof v === 'string' ? `"${v.slice(0, 80)}${v.length > 80 ? '…' : ''}"` : String(v).slice(0, 80)
+    return `${k}: ${val}`
+  })
+  return ` · ${parts.join(' · ')}`
+}
+
+// ─── System prompt builder ────────────────────────────────────────────────────
+
+function buildSystemPrompt(agentData: AgentNodeData): string {
+  const base = agentData.systemPrompt ?? ''
+
+  if (!agentData.outputSchema?.length) return base
+
+  const schemaGuide = buildSchemaGuide(agentData.outputSchema)
+  return base
+    ? `${base}\n\n${schemaGuide}`
+    : schemaGuide
+}
+
+function buildSchemaGuide(fields: OutputSchemaField[]): string {
+  const lines = fields.map((f) => {
+    const typeHint = f.type === 'string[]' ? 'bullet list' : f.type
+    return `- **${f.key}** (${typeHint})${f.description ? `: ${f.description}` : ''}`
+  })
+  return (
+    `Structure your response using these sections:\n${lines.join('\n')}\n\n` +
+    `Use markdown bold headers for each section name.`
+  )
 }
 
 // ─── User message builder ─────────────────────────────────────────────────────
@@ -146,54 +221,9 @@ function buildUserMessage(agentData: AgentNodeData, upstreamContext: string): st
       `Extract the relevant information for these expected input fields:\n\n` +
       `${fieldList}\n\n` +
       `Context:\n${upstreamContext}\n\n` +
-      `Now complete your task using the extracted information.`
+      `Now complete your task.`
     )
   }
 
   return `Context from previous agents:\n\n${upstreamContext}\n\nNow complete your task.`
-}
-
-// ─── Output schema helpers ────────────────────────────────────────────────────
-
-const DEFAULT_OUTPUT_SCHEMA = z.object({
-  response: z.string().describe("The agent's complete response to the task"),
-  keyPoints: z.array(z.string()).describe('3–5 key points, findings, or conclusions'),
-})
-
-function buildOutputSchema(fields?: OutputSchemaField[]): z.ZodObject<z.ZodRawShape> {
-  if (!fields || fields.length === 0) return DEFAULT_OUTPUT_SCHEMA
-
-  const shape: Record<string, z.ZodTypeAny> = {}
-  for (const f of fields) {
-    let zodType: z.ZodTypeAny
-    switch (f.type) {
-      case 'number':    zodType = z.number(); break
-      case 'boolean':   zodType = z.boolean(); break
-      case 'string[]':  zodType = z.array(z.string()); break
-      default:          zodType = z.string()
-    }
-    shape[f.key] = f.description ? zodType.describe(f.description) : zodType
-  }
-  return z.object(shape) as z.ZodObject<z.ZodRawShape>
-}
-
-function formatOutput(output: Record<string, unknown>): string {
-  const parts: string[] = []
-  for (const [key, value] of Object.entries(output)) {
-    if (Array.isArray(value) && value.length > 0) {
-      // Arrays shown as bullet lists without the key label if it's 'keyPoints'
-      if (key !== 'keyPoints') parts.push(`**${key}:**`)
-      for (const item of value) parts.push(`• ${String(item)}`)
-    } else if (typeof value === 'string' && value) {
-      // Main 'response' field goes first without label
-      if (key === 'response') {
-        parts.unshift(value)
-      } else {
-        parts.push(`**${key}:** ${value}`)
-      }
-    } else if (value !== null && value !== undefined && typeof value !== 'object') {
-      parts.push(`**${key}:** ${String(value)}`)
-    }
-  }
-  return parts.join('\n')
 }

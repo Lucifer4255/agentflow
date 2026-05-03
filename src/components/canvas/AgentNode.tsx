@@ -39,6 +39,11 @@ function AgentNodeInner({ data, selected }: NodeProps) {
       <div className="flex items-center gap-2 border-b border-zinc-800 px-3 py-2">
         <span className={cn('h-2.5 w-2.5 rounded-full', statusStyles[status])} />
         <span className="truncate text-sm font-medium">{d.label}</span>
+        {d.isOutputNode && (
+          <span className="ml-auto shrink-0 rounded-full border border-violet-500/50 bg-violet-950/60 px-1.5 py-px text-[9px] font-semibold uppercase tracking-wider text-violet-300">
+            Output
+          </span>
+        )}
       </div>
 
       <div className="px-3 py-2">

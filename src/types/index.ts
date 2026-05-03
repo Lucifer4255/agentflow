@@ -1,4 +1,10 @@
-export type ToolType = "web_search" | "http_request" | "code_executor" | "mcp";
+export type ToolType = "web_search" | "http_request" | "code_executor" | "mcp"
+
+export interface RouteDefinition {
+  id: string
+  label: string
+  description: string
+}
 export type WebSearchProvider = "exa" | "firecrawl";
 
 export type OutputFieldType = 'string' | 'number' | 'boolean' | 'string[]'
@@ -29,8 +35,11 @@ export interface ToolConfig {
 }
 
 export interface AgentNodeData {
+  routes?: RouteDefinition[]    // router nodes only
+  selectedRoute?: string        // router nodes only — set after execution
   userInput?: string;
   isInputNode?: boolean;
+  isOutputNode?: boolean;
   label: string;
   systemPrompt: string;
   tools: ToolConfig[];

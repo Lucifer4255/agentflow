@@ -1,23 +1,29 @@
-#!/bin/bash
-# Run this once after `docker compose up` to install language runtimes.
+#!/bin/sh
+BASE="${PISTON_URL:-http://localhost:2000}/api/v2"
 
-BASE="http://localhost:2000/api/v2"
-
-echo "Waiting for Piston..."
-until curl -sf "$BASE/runtimes" > /dev/null; do sleep 1; done
+echo "Waiting for Piston at $BASE..."
+until curl -sf "$BASE/runtimes" > /dev/null; do sleep 2; done
 echo "Piston is up."
 
-install() {
-  echo "Installing $1 $2..."
-  curl -sf -X POST "$BASE/packages" \
-    -H "Content-Type: application/json" \
-    -d "{\"language\":\"$1\",\"version\":\"$2\"}" \
-    && echo "$1 $2 done." \
-    || echo "WARNING: failed to install $1 $2"
-}
+echo "Available packages from Piston repo:"
+curl -s "$BASE/packages" | head -c 2000
 
-install python 3.10.0
-install node   18.15.0
+echo ""
+echo "Currently installed runtimes:"
+curl -s "$BASE/runtimes"
 
-echo "All done. Available runtimes:"
-curl -sf "$BASE/runtimes" | python3 -m json.tool
+echo ""
+echo "Installing python 3.10.0..."
+curl -s -X POST "$BASE/packages" \
+  -H "Content-Type: application/json" \
+  -d '{"language":"python","version":"3.10.0"}'
+
+echo ""
+echo "Installing node 18.15.0..."
+curl -s -X POST "$BASE/packages" \
+  -H "Content-Type: application/json" \
+  -d '{"language":"node","version":"18.15.0"}'
+
+echo ""
+echo "Done. Final runtimes:"
+curl -s "$BASE/runtimes"

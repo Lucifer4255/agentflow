@@ -1,32 +1,19 @@
-#!/bin/bash
-set -e
+#!/bin/sh
 
-# Start Piston API in the background
-/piston_api/src/docker-entrypoint.sh &
-PISTON_PID=$!
+CGROUP=/sys/fs/cgroup/isolate
 
-# Wait until the API is ready
-echo "[piston] Waiting for API to be ready..."
-until curl -sf http://localhost:2000/api/v2/runtimes > /dev/null 2>&1; do
-  sleep 1
-done
-echo "[piston] API is up. Installing language runtimes..."
+if [ -d "$CGROUP" ]; then
+  # Migrate all processes out of child cgroups back to root
+  for procs in "$CGROUP"/*/cgroup.procs "$CGROUP/cgroup.procs"; do
+    [ -f "$procs" ] && while read -r pid; do
+      echo "$pid" > /sys/fs/cgroup/cgroup.procs 2>/dev/null || true
+    done < "$procs"
+  done
+  # Remove child cgroups first, then the parent
+  for child in "$CGROUP"/*/; do
+    [ -d "$child" ] && rmdir "$child" 2>/dev/null || true
+  done
+  rmdir "$CGROUP" 2>/dev/null || true
+fi
 
-install_package() {
-  local lang=$1
-  local version=$2
-  echo "[piston] Installing $lang $version..."
-  curl -sf -X POST http://localhost:2000/api/v2/packages \
-    -H "Content-Type: application/json" \
-    -d "{\"language\":\"$lang\",\"version\":\"$version\"}" \
-    && echo "[piston] $lang $version installed." \
-    || echo "[piston] WARNING: failed to install $lang $version"
-}
-
-install_package python  3.10.0
-install_package javascript 18.15.0
-
-echo "[piston] Ready."
-
-# Hand control back to the Piston process
-wait $PISTON_PID
+exec /piston_api/src/docker-entrypoint.sh

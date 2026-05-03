@@ -35,6 +35,7 @@ interface GraphState {
   onConnect: (connection: Connection) => void
 
   addNode: (partial?: Partial<AgentNodeData>) => void
+  addRouterNode: () => void
   updateNodeData: (id: string, patch: Partial<AgentNodeData>) => void
   removeNode: (id: string) => void
   selectNode: (id: string | null) => void
@@ -92,6 +93,26 @@ export const useGraphStore = create<GraphState>((set, get) => ({
         tools: partial?.tools ?? [],
         model: partial?.model,
         isInputNode: isInput,
+        status: 'idle',
+      },
+    }
+    set({ nodes: [...get().nodes, node], selectedNodeId: id })
+  },
+
+  addRouterNode: () => {
+    const id = uid()
+    const node: AgentNode = {
+      id,
+      type: 'routerNode',
+      position: { x: 200 + Math.random() * 200, y: 150 + Math.random() * 200 },
+      data: {
+        label: 'Router',
+        systemPrompt: '',
+        tools: [],
+        routes: [
+          { id: 'route_a', label: 'Route A', description: 'Describe when to use this route' },
+          { id: 'route_b', label: 'Route B', description: 'Describe when to use this route' },
+        ],
         status: 'idle',
       },
     }
